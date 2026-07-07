@@ -880,6 +880,22 @@ export async function initializeDatabase() {
       if (!exists) {
         console.log('[Database] Tables not found. Please run schema.sql in PostgreSQL to set up tables.');
       } else {
+        // Auto-heal missing leave balances for existing employees
+        try {
+          await client.query(`
+            INSERT INTO leave_balances (employee_id, leave_type_id, total_days, used_days, remaining_days)
+            SELECT e.id, lt.id, lt.default_days, 0, lt.default_days
+            FROM employees e
+            CROSS JOIN leave_types lt
+            LEFT JOIN leave_balances lb ON lb.employee_id = e.id AND lb.leave_type_id = lt.id
+            WHERE lb.employee_id IS NULL
+            ON CONFLICT DO NOTHING
+          `);
+          console.log('[Database] Checked and auto-healed missing employee leave balances.');
+        } catch (err) {
+          console.warn('[Database] Failed to auto-heal missing leave balances:', err);
+        }
+
         // Ensure attendance table and its indexes exist
         await client.query(`
           CREATE TABLE IF NOT EXISTS attendance (
@@ -2228,7 +2244,22 @@ export const db = {
       const values = Object.values(data);
       
       const res = await pool.query(`INSERT INTO employees (${columns}) VALUES (${placeholders}) RETURNING *`, values);
-      return res.rows[0];
+      const newEmp = res.rows[0];
+      
+      // Auto-initialize leave balances for PostgreSQL
+      try {
+        const typesRes = await pool.query('SELECT * FROM leave_types');
+        for (const lt of typesRes.rows) {
+          await pool.query(
+            'INSERT INTO leave_balances (employee_id, leave_type_id, total_days, used_days, remaining_days) VALUES ($1, $2, $3, 0, $3) ON CONFLICT DO NOTHING',
+            [newEmp.id, lt.id, lt.default_days]
+          );
+        }
+      } catch (err) {
+        console.error('[Database] Failed to auto-initialize leave balances in PostgreSQL:', err);
+      }
+      
+      return newEmp;
     }
     const newEmp: Employee = {
       id: jsonDb.employees.length > 0 ? Math.max(...jsonDb.employees.map(e => e.id)) + 1 : 1,
@@ -2237,6 +2268,24 @@ export const db = {
       updated_at: new Date().toISOString()
     };
     jsonDb.employees.push(newEmp);
+    
+    // Auto-initialize leave balances for JSON DB
+    try {
+      jsonDb.leave_balances = jsonDb.leave_balances || [];
+      const leaveTypes = jsonDb.leave_types || [];
+      leaveTypes.forEach(lt => {
+        jsonDb.leave_balances.push({
+          employee_id: newEmp.id,
+          leave_type_id: lt.id,
+          total_days: lt.default_days,
+          used_days: 0,
+          remaining_days: lt.default_days
+        });
+      });
+    } catch (err) {
+      console.error('[Database] Failed to auto-initialize leave balances in JSON DB:', err);
+    }
+    
     saveJsonDb();
     return newEmp;
   },

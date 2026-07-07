@@ -137,19 +137,19 @@ export const ReportsCenter: React.FC = () => {
             title: 'Working Hours', 
             dataIndex: 'working_hours', 
             key: 'working_hours', 
-            render: (v: number) => <Text strong>{v.toFixed(1)} hrs</Text>
+            render: (v: number) => <Text strong>{(v || 0).toFixed(1)} hrs</Text>
           },
           { 
             title: 'Idle Hours', 
             dataIndex: 'idle_hours', 
             key: 'idle_hours', 
-            render: (v: number) => <span style={{ color: '#EF4444' }}>{v.toFixed(1)} hrs</span>
+            render: (v: number) => <span style={{ color: '#EF4444' }}>{(v || 0).toFixed(1)} hrs</span>
           },
           { 
             title: 'Break Hours', 
             dataIndex: 'break_hours', 
             key: 'break_hours', 
-            render: (v: number) => <span style={{ color: '#F59E0B' }}>{v.toFixed(1)} hrs</span>
+            render: (v: number) => <span style={{ color: '#F59E0B' }}>{(v || 0).toFixed(1)} hrs</span>
           }
         ];
 
@@ -181,19 +181,19 @@ export const ReportsCenter: React.FC = () => {
             title: 'Working Hours', 
             dataIndex: reportType === 'weekly' || reportType === 'monthly' ? 'total_working_hours' : 'working_hours', 
             key: 'work', 
-            render: (v: number) => <Text strong style={{ color: '#10B981' }}>{v.toFixed(1)} hrs</Text>
+            render: (v: number) => <Text strong style={{ color: '#10B981' }}>{(v || 0).toFixed(1)} hrs</Text>
           },
           { 
             title: 'Idle Hours', 
             dataIndex: reportType === 'weekly' || reportType === 'monthly' ? 'total_idle_hours' : 'idle_hours', 
             key: 'idle', 
-            render: (v: number) => <span style={{ color: '#EF4444' }}>{v.toFixed(1)} hrs</span>
+            render: (v: number) => <span style={{ color: '#EF4444' }}>{(v || 0).toFixed(1)} hrs</span>
           },
           { 
             title: 'Break Hours', 
             dataIndex: reportType === 'weekly' || reportType === 'monthly' ? 'total_break_hours' : 'break_hours', 
             key: 'break', 
-            render: (v: number) => <span style={{ color: '#F59E0B' }}>{v.toFixed(1)} hrs</span>
+            render: (v: number) => <span style={{ color: '#F59E0B' }}>{(v || 0).toFixed(1)} hrs</span>
           }
         ];
 
@@ -206,13 +206,13 @@ export const ReportsCenter: React.FC = () => {
             title: 'Working Hours', 
             dataIndex: 'total_working_hours', 
             key: 'work', 
-            render: (v: number) => <Text strong>{v.toFixed(1)} hrs</Text>
+            render: (v: number) => <Text strong>{(v || 0).toFixed(1)} hrs</Text>
           },
           { 
             title: 'Idle Hours', 
             dataIndex: 'total_idle_hours', 
             key: 'idle', 
-            render: (v: number) => <span style={{ color: '#EF4444' }}>{v.toFixed(1)} hrs</span>
+            render: (v: number) => <span style={{ color: '#EF4444' }}>{(v || 0).toFixed(1)} hrs</span>
           }
         ];
 
@@ -248,7 +248,7 @@ export const ReportsCenter: React.FC = () => {
             title: 'Working Time', 
             dataIndex: 'total_working_hours', 
             key: 'work', 
-            render: (v: number) => <Text>{v.toFixed(1)} hrs</Text>
+            render: (v: number) => <Text>{(v || 0).toFixed(1)} hrs</Text>
           }
         ];
 
@@ -273,7 +273,7 @@ export const ReportsCenter: React.FC = () => {
             title: 'Idle Time', 
             dataIndex: 'idle_hours', 
             key: 'idle_hours',
-            render: (v: number) => <span style={{ color: '#EF4444', fontWeight: 600 }}>{v.toFixed(1)} hrs</span>
+            render: (v: number) => <span style={{ color: '#EF4444', fontWeight: 600 }}>{(v || 0).toFixed(1)} hrs</span>
           },
           { 
             title: 'Idle Ratio %', 
@@ -286,14 +286,14 @@ export const ReportsCenter: React.FC = () => {
       case 'website-usage':
         return [
           { title: 'Domain Address', dataIndex: 'website', key: 'website', render: (v: string) => <code style={{ background: '#F1F5F9', padding: '2px 4px', borderRadius: 4 }}>{v}</code> },
-          { title: 'Total Hours', dataIndex: 'duration_hours', key: 'duration_hours', render: (v: number) => <span>{v.toFixed(2)} hrs</span> },
+          { title: 'Total Hours', dataIndex: 'duration_hours', key: 'duration_hours', render: (v: number) => <span>{(v || 0).toFixed(2)} hrs</span> },
           { title: 'Users Count', dataIndex: 'staff_count', key: 'staff_count' }
         ];
 
       case 'application-usage':
         return [
           { title: 'Application Process', dataIndex: 'app_name', key: 'app_name', render: (v: string) => <Text strong>{v}</Text> },
-          { title: 'Total Hours', dataIndex: 'duration_hours', key: 'duration_hours', render: (v: number) => <span>{v.toFixed(2)} hrs</span> },
+          { title: 'Total Hours', dataIndex: 'duration_hours', key: 'duration_hours', render: (v: number) => <span>{(v || 0).toFixed(2)} hrs</span> },
           { title: 'Users Count', dataIndex: 'staff_count', key: 'staff_count' }
         ];
 
