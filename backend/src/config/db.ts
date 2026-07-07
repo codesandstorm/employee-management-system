@@ -3,7 +3,7 @@ types.setTypeParser(1114, (str) => new Date(str + 'Z'));
 import * as fs from 'fs';
 import * as path from 'path';
 import * as bcrypt from 'bcryptjs';
-import { Department, Employee, Skill, EmployeeSkill, Document, Activity, LeaveType, LeaveBalance, LeaveRequest, LeaveApproval, LeaveDashboardData, Attendance, AttendanceStatus, AttendanceAnalytics, Task, TaskComment, TaskActivity, TaskStatus, TaskPriority, Project, ProjectMember, Team, TeamMember, Notification, NotificationType, AuditLog, AuditLogModule, ProjectStatus } from '../types';
+import { Department, Employee, Skill, EmployeeSkill, Document, Activity, LeaveType, LeaveBalance, LeaveRequest, LeaveApproval, LeaveDashboardData, Attendance, AttendanceStatus, AttendanceAnalytics, Task, TaskComment, TaskActivity, TaskStatus, TaskPriority, Project, ProjectMember, Team, TeamMember, Notification, NotificationType, AuditLog, AuditLogModule, ProjectStatus, Permission, RolePermission, Shift, EmployeeShift, Job, Candidate, Interview, InterviewFeedback, CandidateDocument, OnboardingTask, OnboardingProgress, SalaryStructure, EmployeeSalary, Post, Comment, Reaction, Poll, PollVote } from '../types';
 
 // Load environment variables
 import * as dotenv from 'dotenv';
@@ -86,6 +86,25 @@ interface JsonDatabase {
   asset_history: any[];
   activity_heartbeats: any[];
   agent_devices: any[];
+  permissions: Permission[];
+  role_permissions: RolePermission[];
+  shifts: Shift[];
+  employee_shifts: EmployeeShift[];
+  shift_swaps: any[];
+  jobs: Job[];
+  candidates: Candidate[];
+  candidate_documents: CandidateDocument[];
+  interviews: Interview[];
+  interview_feedback: InterviewFeedback[];
+  onboarding_tasks: OnboardingTask[];
+  onboarding_progress: OnboardingProgress[];
+  salary_structures: SalaryStructure[];
+  employee_salary: EmployeeSalary[];
+  posts: Post[];
+  comments: Comment[];
+  reactions: Reaction[];
+  polls: Poll[];
+  poll_votes: PollVote[];
 }
 
 let jsonDb: JsonDatabase = {
@@ -114,7 +133,26 @@ let jsonDb: JsonDatabase = {
   asset_assignments: [],
   asset_history: [],
   activity_heartbeats: [],
-  agent_devices: []
+  agent_devices: [],
+  permissions: [],
+  role_permissions: [],
+  shifts: [],
+  employee_shifts: [],
+  shift_swaps: [],
+  jobs: [],
+  candidates: [],
+  candidate_documents: [],
+  interviews: [],
+  interview_feedback: [],
+  onboarding_tasks: [],
+  onboarding_progress: [],
+  salary_structures: [],
+  employee_salary: [],
+  posts: [],
+  comments: [],
+  reactions: [],
+  polls: [],
+  poll_votes: []
 };
 
 // Seed Data definition
@@ -1297,6 +1335,296 @@ export async function initializeDatabase() {
           console.warn('[Database] Failed to seed UAT test device:', e);
         }
 
+        // --- NEW ENTERPRISE MODULES SCHEMAS AND MIGRATIONS ---
+        try {
+          // Permissions
+          await client.query(`
+            CREATE TABLE IF NOT EXISTS permissions (
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(100) NOT NULL UNIQUE,
+                code VARCHAR(100) NOT NULL UNIQUE,
+                category VARCHAR(50) NOT NULL,
+                description TEXT
+            );
+          `);
+          await client.query(`
+            CREATE TABLE IF NOT EXISTS role_permissions (
+                role VARCHAR(50) NOT NULL,
+                permission_id INTEGER REFERENCES permissions(id) ON DELETE CASCADE,
+                PRIMARY KEY (role, permission_id)
+            );
+          `);
+
+          // Shifts & Rosters
+          await client.query(`
+            CREATE TABLE IF NOT EXISTS shifts (
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(100) NOT NULL,
+                start_time TIME NOT NULL,
+                end_time TIME NOT NULL,
+                grace_period_mins INTEGER DEFAULT 15,
+                description TEXT,
+                color VARCHAR(20) DEFAULT '#1E2A4A',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+          `);
+          await client.query(`
+            ALTER TABLE shifts ADD COLUMN IF NOT EXISTS color VARCHAR(20) DEFAULT '#1E2A4A';
+          `);
+          await client.query(`
+            CREATE TABLE IF NOT EXISTS employee_shifts (
+                id SERIAL PRIMARY KEY,
+                employee_id INTEGER REFERENCES employees(id) ON DELETE CASCADE,
+                shift_id INTEGER REFERENCES shifts(id) ON DELETE CASCADE,
+                date DATE NOT NULL,
+                swap_requested BOOLEAN DEFAULT FALSE,
+                swap_target_employee_id INTEGER REFERENCES employees(id) ON DELETE SET NULL,
+                swap_status VARCHAR(20) DEFAULT 'None' CHECK (swap_status IN ('None', 'Pending', 'Approved', 'Rejected')),
+                remarks TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                CONSTRAINT unique_employee_shift_date UNIQUE (employee_id, date)
+            );
+          `);
+          await client.query(`
+            ALTER TABLE employee_shifts ADD COLUMN IF NOT EXISTS swap_requested BOOLEAN DEFAULT FALSE;
+          `);
+          await client.query(`
+            ALTER TABLE employee_shifts ADD COLUMN IF NOT EXISTS swap_target_employee_id INTEGER REFERENCES employees(id) ON DELETE SET NULL;
+          `);
+          await client.query(`
+            ALTER TABLE employee_shifts ADD COLUMN IF NOT EXISTS swap_status VARCHAR(20) DEFAULT 'None';
+          `);
+          await client.query(`
+            ALTER TABLE employee_shifts ADD COLUMN IF NOT EXISTS remarks TEXT;
+          `);
+
+          // Recruitment ATS
+          await client.query(`
+            CREATE TABLE IF NOT EXISTS jobs (
+                id SERIAL PRIMARY KEY,
+                title VARCHAR(255) NOT NULL,
+                department_id INTEGER REFERENCES departments(id) ON DELETE SET NULL,
+                description TEXT NOT NULL,
+                requirements TEXT,
+                status VARCHAR(20) DEFAULT 'Draft' CHECK (status IN ('Draft', 'Open', 'Closed')),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+          `);
+          await client.query(`
+            CREATE TABLE IF NOT EXISTS candidates (
+                id SERIAL PRIMARY KEY,
+                job_id INTEGER REFERENCES jobs(id) ON DELETE CASCADE,
+                first_name VARCHAR(100) NOT NULL,
+                last_name VARCHAR(100) NOT NULL,
+                email VARCHAR(100) NOT NULL,
+                phone VARCHAR(20),
+                resume_url VARCHAR(255) NOT NULL,
+                stage VARCHAR(30) DEFAULT 'Applied' CHECK (stage IN ('Applied', 'Screening', 'Technical', 'Manager Round', 'HR Round', 'Offer', 'Joined', 'Rejected')),
+                notes TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+          `);
+          await client.query(`
+            CREATE TABLE IF NOT EXISTS candidate_documents (
+                id SERIAL PRIMARY KEY,
+                candidate_id INTEGER REFERENCES candidates(id) ON DELETE CASCADE,
+                name VARCHAR(255) NOT NULL,
+                file_path VARCHAR(255) NOT NULL,
+                file_type VARCHAR(100) NOT NULL,
+                uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+          `);
+          await client.query(`
+            CREATE TABLE IF NOT EXISTS interviews (
+                id SERIAL PRIMARY KEY,
+                candidate_id INTEGER REFERENCES candidates(id) ON DELETE CASCADE,
+                interviewer_id INTEGER REFERENCES employees(id) ON DELETE SET NULL,
+                schedule_time TIMESTAMP NOT NULL,
+                stage VARCHAR(30) NOT NULL,
+                status VARCHAR(20) DEFAULT 'Scheduled' CHECK (status IN ('Scheduled', 'Completed', 'Cancelled')),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+          `);
+          await client.query(`
+            CREATE TABLE IF NOT EXISTS interview_feedback (
+                id SERIAL PRIMARY KEY,
+                interview_id INTEGER REFERENCES interviews(id) ON DELETE CASCADE,
+                interviewer_id INTEGER REFERENCES employees(id) ON DELETE SET NULL,
+                feedback_text TEXT NOT NULL,
+                score INTEGER CHECK (score BETWEEN 1 AND 10),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+          `);
+
+          // Onboarding tasks
+          await client.query(`
+            CREATE TABLE IF NOT EXISTS onboarding_tasks (
+                id SERIAL PRIMARY KEY,
+                title VARCHAR(255) NOT NULL,
+                description TEXT,
+                role_restriction VARCHAR(20),
+                department_id INTEGER REFERENCES departments(id) ON DELETE SET NULL,
+                is_document_upload BOOLEAN DEFAULT FALSE,
+                is_asset_allocation BOOLEAN DEFAULT FALSE,
+                is_training_assignment BOOLEAN DEFAULT FALSE
+            );
+          `);
+          await client.query(`
+            CREATE TABLE IF NOT EXISTS onboarding_progress (
+                id SERIAL PRIMARY KEY,
+                employee_id INTEGER REFERENCES employees(id) ON DELETE CASCADE,
+                task_id INTEGER REFERENCES onboarding_tasks(id) ON DELETE CASCADE,
+                status VARCHAR(20) DEFAULT 'Pending' CHECK (status IN ('Pending', 'In Progress', 'Completed')),
+                completed_at TIMESTAMP,
+                document_url VARCHAR(255),
+                verified_by INTEGER REFERENCES employees(id) ON DELETE SET NULL,
+                CONSTRAINT unique_employee_onboarding_task UNIQUE (employee_id, task_id)
+            );
+          `);
+
+          // Payroll
+          await client.query(`
+            CREATE TABLE IF NOT EXISTS salary_structures (
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(100) NOT NULL UNIQUE,
+                base_salary NUMERIC(12, 2) NOT NULL,
+                allowances JSONB NOT NULL DEFAULT '{}',
+                deductions JSONB NOT NULL DEFAULT '{}',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+          `);
+          await client.query(`
+            CREATE TABLE IF NOT EXISTS employee_salary (
+                id SERIAL PRIMARY KEY,
+                employee_id INTEGER REFERENCES employees(id) ON DELETE CASCADE UNIQUE,
+                structure_id INTEGER REFERENCES salary_structures(id) ON DELETE RESTRICT,
+                bank_name VARCHAR(100),
+                account_number VARCHAR(50),
+                tax_identifier VARCHAR(50),
+                effective_date DATE NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+          `);
+
+          // Social Connect
+          await client.query(`
+            CREATE TABLE IF NOT EXISTS posts (
+                id SERIAL PRIMARY KEY,
+                employee_id INTEGER REFERENCES employees(id) ON DELETE CASCADE,
+                content TEXT NOT NULL,
+                type VARCHAR(30) DEFAULT 'General' CHECK (type IN ('General', 'Announcement', 'Achievement', 'Anniversary', 'Birthday')),
+                is_pinned BOOLEAN DEFAULT FALSE,
+                attachments JSONB NOT NULL DEFAULT '[]',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+          `);
+          await client.query(`
+            CREATE TABLE IF NOT EXISTS comments (
+                id SERIAL PRIMARY KEY,
+                post_id INTEGER REFERENCES posts(id) ON DELETE CASCADE,
+                employee_id INTEGER REFERENCES employees(id) ON DELETE CASCADE,
+                content TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+          `);
+          await client.query(`
+            CREATE TABLE IF NOT EXISTS reactions (
+                post_id INTEGER REFERENCES posts(id) ON DELETE CASCADE,
+                employee_id INTEGER REFERENCES employees(id) ON DELETE CASCADE,
+                reaction_type VARCHAR(20) DEFAULT 'Like',
+                PRIMARY KEY (post_id, employee_id)
+            );
+          `);
+          await client.query(`
+            CREATE TABLE IF NOT EXISTS polls (
+                id SERIAL PRIMARY KEY,
+                post_id INTEGER REFERENCES posts(id) ON DELETE CASCADE,
+                question VARCHAR(255) NOT NULL,
+                options JSONB NOT NULL DEFAULT '[]',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+          `);
+          await client.query(`
+            CREATE TABLE IF NOT EXISTS poll_votes (
+                poll_id INTEGER REFERENCES polls(id) ON DELETE CASCADE,
+                employee_id INTEGER REFERENCES employees(id) ON DELETE CASCADE,
+                option_index INTEGER NOT NULL,
+                PRIMARY KEY (poll_id, employee_id)
+            );
+          `);
+
+          // Seed permissions
+          const permCount = await client.query('SELECT COUNT(*) FROM permissions');
+          if (parseInt(permCount.rows[0].count, 10) === 0) {
+            const defaultPermissions = [
+              ['View Audit Logs', 'view_audit_logs', 'System', 'Allows viewing audit logs'],
+              ['Manage System Settings', 'manage_settings', 'System', 'Allows managing system settings'],
+              ['View Attendance Telemetry', 'view_telemetry', 'Attendance', 'Allows viewing real-time heartbeats and active screen captures'],
+              ['Approve Leaves', 'approve_leaves', 'Leaves', 'Allows approving/rejecting leave requests'],
+              ['Approve Assets', 'approve_assets', 'Assets', 'Allows assigning and returning IT equipment'],
+              ['Manage Roster Shift Plan', 'manage_roster', 'Roster', 'Allows planning and setting weekly rosters'],
+              ['Manage ATS Job Postings', 'manage_recruitment', 'Recruitment', 'Allows vacancy creation and tracking candidate status'],
+              ['Manage Payroll & Salary Structures', 'manage_payroll', 'Payroll', 'Allows managing structures and monthly salary components']
+            ];
+            for (const perm of defaultPermissions) {
+              const pRes = await client.query(
+                'INSERT INTO permissions (name, code, category, description) VALUES ($1, $2, $3, $4) RETURNING id',
+                perm
+              );
+              const pId = pRes.rows[0].id;
+              await client.query("INSERT INTO role_permissions (role, permission_id) VALUES ('Super Admin', $1), ('Admin', $1)", [pId]);
+              if (['approve_leaves', 'approve_assets', 'manage_roster', 'manage_recruitment', 'manage_payroll'].includes(perm[1])) {
+                await client.query("INSERT INTO role_permissions (role, permission_id) VALUES ('HR', $1)", [pId]);
+              }
+              if (['approve_leaves', 'manage_roster'].includes(perm[1])) {
+                await client.query("INSERT INTO role_permissions (role, permission_id) VALUES ('Manager', $1)", [pId]);
+              }
+            }
+            console.log('[Database] Seeded default permissions matrix.');
+          }
+
+          // Seed default shifts
+          const shiftCount = await client.query('SELECT COUNT(*) FROM shifts');
+          if (parseInt(shiftCount.rows[0].count, 10) === 0) {
+            await client.query("INSERT INTO shifts (name, start_time, end_time, grace_period_mins, description, color) VALUES ('Morning Shift', '09:00:00', '17:00:00', 15, 'Standard day shift', '#1E2A4A'), ('Evening Shift', '16:00:00', '00:00:00', 15, 'Second shift roster', '#F5A524'), ('Night Shift', '00:00:00', '08:00:00', 15, 'Graveyard shift roster', '#E5484D')");
+            console.log('[Database] Seeded default shifts.');
+          }
+
+          // Seed onboarding tasks
+          const onboardingTaskCount = await client.query('SELECT COUNT(*) FROM onboarding_tasks');
+          if (parseInt(onboardingTaskCount.rows[0].count, 10) === 0) {
+            const defaultOnboardingTasks = [
+              ['Submit Tax Forms', 'Upload tax identity and bank forms.', 'Employee', null, true, false, false],
+              ['Request Workstation Assets', 'Assign initial laptop, keyboard, and display.', 'HR', null, false, true, false],
+              ['Complete Security Awareness Training', 'Complete corporate compliance module.', 'Employee', null, false, false, true],
+              ['Setup Workspace Email', 'Configure corporate Slack and Google accounts.', 'Manager', null, false, false, false]
+            ];
+            for (const task of defaultOnboardingTasks) {
+              await client.query(
+                'INSERT INTO onboarding_tasks (title, description, role_restriction, department_id, is_document_upload, is_asset_allocation, is_training_assignment) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+                task
+              );
+            }
+            console.log('[Database] Seeded onboarding checklist tasks.');
+          }
+
+          // Seed default salary structures
+          const structureCount = await client.query('SELECT COUNT(*) FROM salary_structures');
+          if (parseInt(structureCount.rows[0].count, 10) === 0) {
+            await client.query(`
+              INSERT INTO salary_structures (name, base_salary, allowances, deductions) 
+              VALUES 
+              ('Executive Level', 150000.00, '{"HRA": 25000, "Travel": 5000, "Medical": 3000}', '{"Provident Fund": 12000, "Professional Tax": 200}'),
+              ('Senior Engineering', 110000.00, '{"HRA": 18000, "Travel": 4000, "Medical": 3000}', '{"Provident Fund": 9000, "Professional Tax": 200}'),
+              ('Standard Professional', 75000.00, '{"HRA": 12000, "Travel": 3000, "Medical": 2500}', '{"Provident Fund": 6000, "Professional Tax": 200}')
+            `);
+            console.log('[Database] Seeded default salary structures.');
+          }
+
+        } catch (migrationErr) {
+          console.error('[Database] Failed to deploy enterprise migrations:', migrationErr);
+        }
+
         const empCount = await client.query('SELECT COUNT(*) FROM employees');
         if (parseInt(empCount.rows[0].count) === 0) {
           console.log('[Database] PostgreSQL DB empty. Seeding...');
@@ -1590,6 +1918,161 @@ async function initJsonDatabase() {
 
       if (!jsonDb.audit_logs) {
         jsonDb.audit_logs = [];
+        needsSave = true;
+      }
+
+      // Initialize missing JSON fallback arrays
+      if (!jsonDb.permissions) {
+        jsonDb.permissions = [
+          { id: 1, name: 'View Audit Logs', code: 'view_audit_logs', category: 'System', description: 'Allows viewing audit logs' },
+          { id: 2, name: 'Manage System Settings', code: 'manage_settings', category: 'System', description: 'Allows managing system settings' },
+          { id: 3, name: 'View Attendance Telemetry', code: 'view_telemetry', category: 'Attendance', description: 'Allows viewing real-time heartbeats and active screen captures' },
+          { id: 4, name: 'Approve Leaves', code: 'approve_leaves', category: 'Leaves', description: 'Allows approving/rejecting leave requests' },
+          { id: 5, name: 'Approve Assets', code: 'approve_assets', category: 'Assets', description: 'Allows assigning and returning IT equipment' },
+          { id: 6, name: 'Manage Roster Shift Plan', code: 'manage_roster', category: 'Roster', description: 'Allows planning and setting weekly rosters' },
+          { id: 7, name: 'Manage ATS Job Postings', code: 'manage_recruitment', category: 'Recruitment', description: 'Allows vacancy creation and tracking candidate status' },
+          { id: 8, name: 'Manage Payroll & Salary Structures', code: 'manage_payroll', category: 'Payroll', description: 'Allows managing structures and monthly salary components' }
+        ];
+        jsonDb.role_permissions = [
+          { role: 'Super Admin', permission_id: 1 },
+          { role: 'Super Admin', permission_id: 2 },
+          { role: 'Super Admin', permission_id: 3 },
+          { role: 'Super Admin', permission_id: 4 },
+          { role: 'Super Admin', permission_id: 5 },
+          { role: 'Super Admin', permission_id: 6 },
+          { role: 'Super Admin', permission_id: 7 },
+          { role: 'Super Admin', permission_id: 8 },
+          { role: 'Admin', permission_id: 1 },
+          { role: 'Admin', permission_id: 2 },
+          { role: 'Admin', permission_id: 3 },
+          { role: 'Admin', permission_id: 4 },
+          { role: 'Admin', permission_id: 5 },
+          { role: 'Admin', permission_id: 6 },
+          { role: 'Admin', permission_id: 7 },
+          { role: 'Admin', permission_id: 8 },
+          { role: 'HR', permission_id: 4 },
+          { role: 'HR', permission_id: 5 },
+          { role: 'HR', permission_id: 6 },
+          { role: 'HR', permission_id: 7 },
+          { role: 'HR', permission_id: 8 },
+          { role: 'Manager', permission_id: 4 },
+          { role: 'Manager', permission_id: 6 }
+        ];
+        needsSave = true;
+      }
+
+      if (!jsonDb.role_permissions) {
+        jsonDb.role_permissions = [];
+        needsSave = true;
+      }
+
+      if (!jsonDb.shifts) {
+        jsonDb.shifts = [
+          { id: 1, name: 'Morning Shift', start_time: '09:00:00', end_time: '17:00:00', grace_period_mins: 15, description: 'Standard day shift', color: '#1E2A4A' },
+          { id: 2, name: 'Evening Shift', start_time: '16:00:00', end_time: '00:00:00', grace_period_mins: 15, description: 'Second shift roster', color: '#F5A524' },
+          { id: 3, name: 'Night Shift', start_time: '00:00:00', end_time: '08:00:00', grace_period_mins: 15, description: 'Graveyard shift roster', color: '#E5484D' }
+        ];
+        needsSave = true;
+      }
+
+      if (!jsonDb.employee_shifts) {
+        jsonDb.employee_shifts = [];
+        needsSave = true;
+      }
+
+      if (!jsonDb.shift_swaps) {
+        jsonDb.shift_swaps = [];
+        needsSave = true;
+      }
+
+      if (!jsonDb.jobs) {
+        jsonDb.jobs = [
+          { id: 1, title: 'Senior Full Stack Engineer', department_id: 1, description: 'Loves TS, React, Node and scaling databases.', requirements: '5+ years experience, Docker knowledge.', status: 'Open', created_at: new Date().toISOString() },
+          { id: 2, title: 'UI/UX Designer', department_id: 2, description: 'Create user interfaces that wow the clients.', requirements: 'Figma expertise, portfolio.', status: 'Open', created_at: new Date().toISOString() }
+        ];
+        needsSave = true;
+      }
+
+      if (!jsonDb.candidates) {
+        jsonDb.candidates = [];
+        needsSave = true;
+      }
+
+      if (!jsonDb.candidate_documents) {
+        jsonDb.candidate_documents = [];
+        needsSave = true;
+      }
+
+      if (!jsonDb.interviews) {
+        jsonDb.interviews = [];
+        needsSave = true;
+      }
+
+      if (!jsonDb.interview_feedback) {
+        jsonDb.interview_feedback = [];
+        needsSave = true;
+      }
+
+      if (!jsonDb.onboarding_tasks) {
+        jsonDb.onboarding_tasks = [
+          { id: 1, title: 'Submit Tax Forms', description: 'Upload tax identity and bank forms.', role_restriction: 'Employee', department_id: null, is_document_upload: true, is_asset_allocation: false, is_training_assignment: false },
+          { id: 2, title: 'Request Workstation Assets', description: 'Assign initial laptop, keyboard, and display.', role_restriction: 'HR', department_id: null, is_document_upload: false, is_asset_allocation: true, is_training_assignment: false },
+          { id: 3, title: 'Complete Security Awareness Training', description: 'Complete corporate compliance module.', role_restriction: 'Employee', department_id: null, is_document_upload: false, is_asset_allocation: false, is_training_assignment: true },
+          { id: 4, title: 'Setup Workspace Email', description: 'Configure corporate Slack and Google accounts.', role_restriction: 'Manager', department_id: null, is_document_upload: false, is_asset_allocation: false, is_training_assignment: false }
+        ];
+        needsSave = true;
+      }
+
+      if (!jsonDb.onboarding_progress) {
+        jsonDb.onboarding_progress = [];
+        needsSave = true;
+      }
+
+      if (!jsonDb.salary_structures) {
+        jsonDb.salary_structures = [
+          { id: 1, name: 'Executive Level', base_salary: 150000.00, allowances: { HRA: 25000, Travel: 5000, Medical: 3000 }, deductions: { "Provident Fund": 12000, "Professional Tax": 200 }, created_at: new Date().toISOString() },
+          { id: 2, name: 'Senior Engineering', base_salary: 110000.00, allowances: { HRA: 18000, Travel: 4000, Medical: 3000 }, deductions: { "Provident Fund": 9000, "Professional Tax": 200 }, created_at: new Date().toISOString() },
+          { id: 3, name: 'Standard Professional', base_salary: 75000.00, allowances: { HRA: 12000, Travel: 3000, Medical: 2500 }, deductions: { "Provident Fund": 6000, "Professional Tax": 200 }, created_at: new Date().toISOString() }
+        ];
+        needsSave = true;
+      }
+
+      if (!jsonDb.employee_salary) {
+        jsonDb.employee_salary = [];
+        needsSave = true;
+      }
+
+      if (!jsonDb.posts) {
+        jsonDb.posts = [
+          { id: 1, employee_id: 1, content: 'Welcome to our new HR system! Explore the new Roster and ATS features.', type: 'Announcement', is_pinned: true, attachments: [], created_at: new Date().toISOString() },
+          { id: 2, employee_id: 4, content: 'Excited to be working on the flagship portfolio features today! Let me know if you run into any styling bugs.', type: 'General', is_pinned: false, attachments: [], created_at: new Date().toISOString() }
+        ];
+        needsSave = true;
+      }
+
+      if (!jsonDb.comments) {
+        jsonDb.comments = [];
+        needsSave = true;
+      }
+
+      if (!jsonDb.reactions) {
+        jsonDb.reactions = [];
+        needsSave = true;
+      }
+
+      if (!jsonDb.polls) {
+        jsonDb.polls = [
+          { id: 1, post_id: 1, question: 'Which new feature are you most excited about?', options: ['Shift Scheduler', 'Recruitment ATS', 'Social Feed', 'ESS Portal Clock Widget'], created_at: new Date().toISOString() }
+        ];
+        jsonDb.poll_votes = [
+          { poll_id: 1, employee_id: 4, option_index: 0 },
+          { poll_id: 1, employee_id: 2, option_index: 1 }
+        ];
+        needsSave = true;
+      }
+
+      if (!jsonDb.poll_votes) {
+        jsonDb.poll_votes = [];
         needsSave = true;
       }
 
@@ -6039,6 +6522,1028 @@ export const db = {
       return true;
     }
     return false;
+  },
+
+  // --- PERMISSIONS MATRIX METHODS ---
+  async getPermissions(): Promise<Permission[]> {
+    if (this.isPostgres() && pool) {
+      const res = await pool.query('SELECT * FROM permissions ORDER BY id ASC');
+      return res.rows;
+    }
+    jsonDb.permissions = jsonDb.permissions || [];
+    return jsonDb.permissions;
+  },
+
+  async getRolePermissions(role: string): Promise<string[]> {
+    if (this.isPostgres() && pool) {
+      const res = await pool.query(`
+        SELECT p.code 
+        FROM role_permissions rp
+        JOIN permissions p ON rp.permission_id = p.id
+        WHERE rp.role = $1
+      `, [role]);
+      return res.rows.map(r => r.code);
+    }
+    jsonDb.role_permissions = jsonDb.role_permissions || [];
+    jsonDb.permissions = jsonDb.permissions || [];
+    const rps = jsonDb.role_permissions.filter((rp: RolePermission) => rp.role === role);
+    return rps.map((rp: RolePermission) => {
+      const p = jsonDb.permissions.find((item: Permission) => item.id === rp.permission_id);
+      return p ? p.code : '';
+    }).filter(Boolean);
+  },
+
+  async assignRolePermissions(role: string, permissionIds: number[]): Promise<boolean> {
+    if (this.isPostgres() && pool) {
+      await pool.query('DELETE FROM role_permissions WHERE role = $1', [role]);
+      for (const pid of permissionIds) {
+        await pool.query('INSERT INTO role_permissions (role, permission_id) VALUES ($1, $2)', [role, pid]);
+      }
+      return true;
+    }
+    jsonDb.role_permissions = jsonDb.role_permissions || [];
+    jsonDb.role_permissions = jsonDb.role_permissions.filter((rp: RolePermission) => rp.role !== role);
+    for (const pid of permissionIds) {
+      jsonDb.role_permissions.push({ role, permission_id: pid });
+    }
+    saveJsonDb();
+    return true;
+  },
+
+  // --- SHIFT MANAGEMENT METHODS ---
+  async getShifts(): Promise<Shift[]> {
+    if (this.isPostgres() && pool) {
+      const res = await pool.query('SELECT * FROM shifts ORDER BY id ASC');
+      return res.rows;
+    }
+    jsonDb.shifts = jsonDb.shifts || [];
+    return jsonDb.shifts;
+  },
+
+  async createShift(data: Omit<Shift, 'id'>): Promise<Shift> {
+    if (this.isPostgres() && pool) {
+      const res = await pool.query(`
+        INSERT INTO shifts (name, start_time, end_time, color)
+        VALUES ($1, $2, $3, $4)
+        RETURNING *
+      `, [data.name, data.start_time, data.end_time, data.color]);
+      return res.rows[0];
+    }
+    jsonDb.shifts = jsonDb.shifts || [];
+    const newId = jsonDb.shifts.length > 0 ? Math.max(...jsonDb.shifts.map((s: Shift) => s.id)) + 1 : 1;
+    const newShift = { id: newId, ...data, created_at: new Date().toISOString() };
+    jsonDb.shifts.push(newShift);
+    saveJsonDb();
+    return newShift;
+  },
+
+  async updateShift(id: number, data: Partial<Omit<Shift, 'id'>>): Promise<Shift | null> {
+    if (this.isPostgres() && pool) {
+      const keys = Object.keys(data);
+      if (keys.length === 0) {
+        const res = await pool.query('SELECT * FROM shifts WHERE id = $1', [id]);
+        return res.rows[0] || null;
+      }
+      const setClause = keys.map((k, i) => `"${k}" = $${i + 2}`).join(', ');
+      const params = keys.map(k => (data as any)[k]);
+      const res = await pool.query(`
+        UPDATE shifts
+        SET ${setClause}
+        WHERE id = $1
+        RETURNING *
+      `, [id, ...params]);
+      return res.rows[0] || null;
+    }
+    jsonDb.shifts = jsonDb.shifts || [];
+    const idx = jsonDb.shifts.findIndex((s: Shift) => s.id === id);
+    if (idx === -1) return null;
+    jsonDb.shifts[idx] = { ...jsonDb.shifts[idx], ...data };
+    saveJsonDb();
+    return jsonDb.shifts[idx];
+  },
+
+  async deleteShift(id: number): Promise<boolean> {
+    if (this.isPostgres() && pool) {
+      const res = await pool.query('DELETE FROM shifts WHERE id = $1', [id]);
+      return (res.rowCount ?? 0) > 0;
+    }
+    jsonDb.shifts = jsonDb.shifts || [];
+    const len = jsonDb.shifts.length;
+    jsonDb.shifts = jsonDb.shifts.filter((s: Shift) => s.id !== id);
+    saveJsonDb();
+    return jsonDb.shifts.length < len;
+  },
+
+  async getEmployeeShifts(filters: { startDate?: string; endDate?: string; employeeId?: number } = {}): Promise<EmployeeShift[]> {
+    if (this.isPostgres() && pool) {
+      let queryText = `
+        SELECT es.*,
+               CONCAT(e.first_name, ' ', e.last_name) as employee_name,
+               s.name as shift_name,
+               s.start_time as shift_start,
+               s.end_time as shift_end,
+               s.color as shift_color
+        FROM employee_shifts es
+        JOIN employees e ON es.employee_id = e.id
+        JOIN shifts s ON es.shift_id = s.id
+        WHERE 1=1
+      `;
+      const params: any[] = [];
+      let index = 1;
+      if (filters.startDate) {
+        queryText += ` AND es.date >= $${index++}`;
+        params.push(filters.startDate);
+      }
+      if (filters.endDate) {
+        queryText += ` AND es.date <= $${index++}`;
+        params.push(filters.endDate);
+      }
+      if (filters.employeeId) {
+        queryText += ` AND es.employee_id = $${index++}`;
+        params.push(filters.employeeId);
+      }
+      queryText += ' ORDER BY es.date ASC, s.start_time ASC';
+      const res = await pool.query(queryText, params);
+      return res.rows;
+    }
+
+    jsonDb.employee_shifts = jsonDb.employee_shifts || [];
+    let list = jsonDb.employee_shifts.map((es: EmployeeShift) => {
+      const emp = jsonDb.employees.find(e => e.id === es.employee_id);
+      const s = jsonDb.shifts.find((item: Shift) => item.id === es.shift_id);
+      return {
+        ...es,
+        employee_name: emp ? `${emp.first_name} ${emp.last_name}` : 'Employee',
+        shift_name: s ? s.name : 'Shift',
+        shift_start: s ? s.start_time : '00:00:00',
+        shift_end: s ? s.end_time : '00:00:00',
+        shift_color: s ? s.color : '#1E2A4A'
+      };
+    });
+
+    if (filters.startDate) {
+      list = list.filter((es: EmployeeShift) => es.date >= filters.startDate!);
+    }
+    if (filters.endDate) {
+      list = list.filter((es: EmployeeShift) => es.date <= filters.endDate!);
+    }
+    if (filters.employeeId) {
+      list = list.filter((es: EmployeeShift) => es.employee_id === filters.employeeId);
+    }
+    return list;
+  },
+
+  async assignEmployeeShift(data: { employee_id: number; shift_id: number; date: string }): Promise<EmployeeShift> {
+    if (this.isPostgres() && pool) {
+      const res = await pool.query(`
+        INSERT INTO employee_shifts (employee_id, shift_id, date)
+        VALUES ($1, $2, $3)
+        ON CONFLICT (employee_id, date) DO UPDATE 
+        SET shift_id = EXCLUDED.shift_id, swap_requested = FALSE, swap_target_employee_id = NULL, swap_status = 'None'
+        RETURNING *
+      `, [data.employee_id, data.shift_id, data.date]);
+      return res.rows[0];
+    }
+    jsonDb.employee_shifts = jsonDb.employee_shifts || [];
+    const idx = jsonDb.employee_shifts.findIndex((es: EmployeeShift) => es.employee_id === data.employee_id && es.date === data.date);
+    let record: any;
+    if (idx !== -1) {
+      jsonDb.employee_shifts[idx] = {
+        ...jsonDb.employee_shifts[idx],
+        shift_id: data.shift_id,
+        swap_requested: false,
+        swap_target_employee_id: null,
+        swap_status: 'None'
+      };
+      record = jsonDb.employee_shifts[idx];
+    } else {
+      const newId = jsonDb.employee_shifts.length > 0 ? Math.max(...jsonDb.employee_shifts.map((es: EmployeeShift) => es.id)) + 1 : 1;
+      record = {
+        id: newId,
+        employee_id: data.employee_id,
+        shift_id: data.shift_id,
+        date: data.date,
+        swap_requested: false,
+        swap_target_employee_id: null,
+        swap_status: 'None',
+        remarks: null,
+        created_at: new Date().toISOString()
+      };
+      jsonDb.employee_shifts.push(record);
+    }
+    saveJsonDb();
+    return record;
+  },
+
+  async requestShiftSwap(id: number, targetEmployeeId: number, remarks?: string): Promise<EmployeeShift | null> {
+    if (this.isPostgres() && pool) {
+      const res = await pool.query(`
+        UPDATE employee_shifts
+        SET swap_requested = TRUE, swap_target_employee_id = $2, swap_status = 'Pending', remarks = $3
+        WHERE id = $1
+        RETURNING *
+      `, [id, targetEmployeeId, remarks || null]);
+      return res.rows[0] || null;
+    }
+    jsonDb.employee_shifts = jsonDb.employee_shifts || [];
+    const idx = jsonDb.employee_shifts.findIndex((es: EmployeeShift) => es.id === id);
+    if (idx === -1) return null;
+    jsonDb.employee_shifts[idx] = {
+      ...jsonDb.employee_shifts[idx],
+      swap_requested: true,
+      swap_target_employee_id: targetEmployeeId,
+      swap_status: 'Pending',
+      remarks: remarks || null
+    };
+    saveJsonDb();
+    return jsonDb.employee_shifts[idx];
+  },
+
+  async processShiftSwap(id: number, status: 'Approved' | 'Rejected'): Promise<boolean> {
+    if (this.isPostgres() && pool) {
+      const reqRes = await pool.query('SELECT * FROM employee_shifts WHERE id = $1', [id]);
+      if (reqRes.rows.length === 0) throw new Error('Swap request shift not found.');
+      const reqShift = reqRes.rows[0];
+
+      if (status === 'Rejected') {
+        await pool.query("UPDATE employee_shifts SET swap_requested = FALSE, swap_status = 'Rejected' WHERE id = $1", [id]);
+        return true;
+      }
+
+      const targetEmpId = reqShift.swap_target_employee_id;
+      const swapDate = reqShift.date;
+      const requesterOriginalShiftId = reqShift.shift_id;
+
+      const targetRes = await pool.query('SELECT * FROM employee_shifts WHERE employee_id = $1 AND date = $2', [targetEmpId, swapDate]);
+      if (targetRes.rows.length > 0) {
+        const targetShift = targetRes.rows[0];
+        const targetOriginalShiftId = targetShift.shift_id;
+
+        await pool.query('UPDATE employee_shifts SET shift_id = $2, swap_requested = FALSE, swap_target_employee_id = NULL, swap_status = \'None\', remarks = NULL WHERE id = $1', [id, targetOriginalShiftId]);
+        await pool.query('UPDATE employee_shifts SET shift_id = $2, swap_requested = FALSE, swap_target_employee_id = NULL, swap_status = \'None\', remarks = NULL WHERE id = $1', [targetShift.id, requesterOriginalShiftId]);
+      } else {
+        await pool.query('INSERT INTO employee_shifts (employee_id, shift_id, date) VALUES ($1, $2, $3)', [targetEmpId, requesterOriginalShiftId, swapDate]);
+        await pool.query('DELETE FROM employee_shifts WHERE id = $1', [id]);
+      }
+      return true;
+    }
+
+    jsonDb.employee_shifts = jsonDb.employee_shifts || [];
+    const idx = jsonDb.employee_shifts.findIndex((es: EmployeeShift) => es.id === id);
+    if (idx === -1) throw new Error('Swap request shift not found.');
+    const reqShift = jsonDb.employee_shifts[idx];
+
+    if (status === 'Rejected') {
+      jsonDb.employee_shifts[idx].swap_requested = false;
+      jsonDb.employee_shifts[idx].swap_status = 'Rejected';
+      saveJsonDb();
+      return true;
+    }
+
+    const targetEmpId = reqShift.swap_target_employee_id;
+    const swapDate = reqShift.date;
+    const requesterOriginalShiftId = reqShift.shift_id;
+
+    const targetIdx = jsonDb.employee_shifts.findIndex((es: EmployeeShift) => es.employee_id === targetEmpId && es.date === swapDate);
+    if (targetIdx !== -1) {
+      const targetShift = jsonDb.employee_shifts[targetIdx];
+      const targetOriginalShiftId = targetShift.shift_id;
+
+      jsonDb.employee_shifts[idx] = {
+        ...jsonDb.employee_shifts[idx],
+        shift_id: targetOriginalShiftId,
+        swap_requested: false,
+        swap_target_employee_id: null,
+        swap_status: 'None',
+        remarks: null
+      };
+
+      jsonDb.employee_shifts[targetIdx] = {
+        ...jsonDb.employee_shifts[targetIdx],
+        shift_id: requesterOriginalShiftId,
+        swap_requested: false,
+        swap_target_employee_id: null,
+        swap_status: 'None',
+        remarks: null
+      };
+    } else {
+      const newId = jsonDb.employee_shifts.length > 0 ? Math.max(...jsonDb.employee_shifts.map((es: EmployeeShift) => es.id)) + 1 : 1;
+      jsonDb.employee_shifts.push({
+        id: newId,
+        employee_id: targetEmpId!,
+        shift_id: requesterOriginalShiftId,
+        date: swapDate,
+        swap_requested: false,
+        swap_target_employee_id: null,
+        swap_status: 'None',
+        remarks: null,
+        created_at: new Date().toISOString()
+      });
+      jsonDb.employee_shifts = jsonDb.employee_shifts.filter((es: EmployeeShift) => es.id !== id);
+    }
+    saveJsonDb();
+    return true;
+  },
+
+  // --- RECRUITMENT ATS CRUDS ---
+  async getJobs(): Promise<Job[]> {
+    if (this.isPostgres() && pool) {
+      const res = await pool.query(`
+        SELECT j.*, d.name as department_name 
+        FROM jobs j
+        LEFT JOIN departments d ON j.department_id = d.id
+        ORDER BY j.created_at DESC
+      `);
+      return res.rows;
+    }
+    return (jsonDb.jobs || []).map(j => {
+      const dept = jsonDb.departments.find(d => d.id === j.department_id);
+      return { ...j, department_name: dept ? dept.name : undefined };
+    }).sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+  },
+
+  async createJob(title: string, department_id: number | null, description: string, requirements?: string | null, status: 'Draft' | 'Open' | 'Closed' = 'Draft'): Promise<Job> {
+    if (this.isPostgres() && pool) {
+      const res = await pool.query(
+        'INSERT INTO jobs (title, department_id, description, requirements, status) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+        [title, department_id, description, requirements || null, status]
+      );
+      return res.rows[0];
+    }
+    const newJob: Job = {
+      id: (jsonDb.jobs || []).length > 0 ? Math.max(...jsonDb.jobs.map(j => j.id)) + 1 : 1,
+      title,
+      department_id,
+      description,
+      requirements: requirements || null,
+      status,
+      created_at: new Date().toISOString()
+    };
+    jsonDb.jobs = jsonDb.jobs || [];
+    jsonDb.jobs.push(newJob);
+    saveJsonDb();
+    return newJob;
+  },
+
+  async getCandidates(job_id?: number | null): Promise<Candidate[]> {
+    if (this.isPostgres() && pool) {
+      let queryStr = `
+        SELECT c.*, j.title as job_title 
+        FROM candidates c
+        LEFT JOIN jobs j ON c.job_id = j.id
+      `;
+      const params: any[] = [];
+      if (job_id) {
+        queryStr += ' WHERE c.job_id = $1';
+        params.push(job_id);
+      }
+      queryStr += ' ORDER BY c.created_at DESC';
+      const res = await pool.query(queryStr, params);
+      return res.rows;
+    }
+    let list = jsonDb.candidates || [];
+    if (job_id) {
+      list = list.filter(c => c.job_id === job_id);
+    }
+    return list.map(c => {
+      const job = jsonDb.jobs.find(j => j.id === c.job_id);
+      return { ...c, job_title: job ? job.title : undefined };
+    }).sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+  },
+
+  async getCandidateById(id: number): Promise<Candidate | null> {
+    if (this.isPostgres() && pool) {
+      const res = await pool.query('SELECT c.*, j.title as job_title FROM candidates c LEFT JOIN jobs j ON c.job_id = j.id WHERE c.id = $1', [id]);
+      return res.rows[0] || null;
+    }
+    const cand = (jsonDb.candidates || []).find(c => c.id === id);
+    if (!cand) return null;
+    const job = jsonDb.jobs.find(j => j.id === cand.job_id);
+    return { ...cand, job_title: job ? job.title : undefined };
+  },
+
+  async createCandidate(job_id: number | null, first_name: string, last_name: string, email: string, phone: string | null, resume_url: string, notes?: string | null): Promise<Candidate> {
+    if (this.isPostgres() && pool) {
+      const res = await pool.query(`
+        INSERT INTO candidates (job_id, first_name, last_name, email, phone, resume_url, stage, notes)
+        VALUES ($1, $2, $3, $4, $5, $6, 'Applied', $7)
+        RETURNING *
+      `, [job_id, first_name, last_name, email, phone, resume_url, notes || null]);
+      return res.rows[0];
+    }
+    const newCand: Candidate = {
+      id: (jsonDb.candidates || []).length > 0 ? Math.max(...jsonDb.candidates.map(c => c.id)) + 1 : 1,
+      job_id,
+      first_name,
+      last_name,
+      email,
+      phone,
+      resume_url,
+      stage: 'Applied',
+      notes: notes || null,
+      created_at: new Date().toISOString()
+    };
+    jsonDb.candidates = jsonDb.candidates || [];
+    jsonDb.candidates.push(newCand);
+    saveJsonDb();
+    return newCand;
+  },
+
+  async updateCandidateStage(id: number, stage: Candidate['stage']): Promise<Candidate | null> {
+    if (this.isPostgres() && pool) {
+      const res = await pool.query('UPDATE candidates SET stage = $2 WHERE id = $1 RETURNING *', [id, stage]);
+      return res.rows[0] || null;
+    }
+    jsonDb.candidates = jsonDb.candidates || [];
+    const idx = jsonDb.candidates.findIndex(c => c.id === id);
+    if (idx === -1) return null;
+    jsonDb.candidates[idx] = { ...jsonDb.candidates[idx], stage };
+    saveJsonDb();
+    return jsonDb.candidates[idx];
+  },
+
+  async getInterviews(candidate_id?: number): Promise<Interview[]> {
+    if (this.isPostgres() && pool) {
+      let queryStr = `
+        SELECT i.*, 
+               c.first_name || ' ' || c.last_name as candidate_name,
+               e.first_name || ' ' || e.last_name as interviewer_name
+        FROM interviews i
+        JOIN candidates c ON i.candidate_id = c.id
+        LEFT JOIN employees e ON i.interviewer_id = e.id
+      `;
+      const params: any[] = [];
+      if (candidate_id) {
+        queryStr += ' WHERE i.candidate_id = $1';
+        params.push(candidate_id);
+      }
+      queryStr += ' ORDER BY i.schedule_time ASC';
+      const res = await pool.query(queryStr, params);
+      return res.rows;
+    }
+    let list = jsonDb.interviews || [];
+    if (candidate_id) {
+      list = list.filter(i => i.candidate_id === candidate_id);
+    }
+    return list.map(i => {
+      const cand = jsonDb.candidates.find(c => c.id === i.candidate_id);
+      const emp = jsonDb.employees.find(e => e.id === i.interviewer_id);
+      return {
+        ...i,
+        candidate_name: cand ? `${cand.first_name} ${cand.last_name}` : undefined,
+        interviewer_name: emp ? `${emp.first_name} ${emp.last_name}` : undefined
+      };
+    }).sort((a, b) => new Date(a.schedule_time).getTime() - new Date(b.schedule_time).getTime());
+  },
+
+  async createInterview(candidate_id: number, interviewer_id: number | null, schedule_time: string, stage: string): Promise<Interview> {
+    if (this.isPostgres() && pool) {
+      const res = await pool.query(`
+        INSERT INTO interviews (candidate_id, interviewer_id, schedule_time, stage, status)
+        VALUES ($1, $2, $3, $4, 'Scheduled')
+        RETURNING *
+      `, [candidate_id, interviewer_id, schedule_time, stage]);
+      return res.rows[0];
+    }
+    const newInt: Interview = {
+      id: (jsonDb.interviews || []).length > 0 ? Math.max(...jsonDb.interviews.map(i => i.id)) + 1 : 1,
+      candidate_id,
+      interviewer_id,
+      schedule_time,
+      stage,
+      status: 'Scheduled',
+      created_at: new Date().toISOString()
+    };
+    jsonDb.interviews = jsonDb.interviews || [];
+    jsonDb.interviews.push(newInt);
+    saveJsonDb();
+    return newInt;
+  },
+
+  async updateInterviewStatus(id: number, status: 'Scheduled' | 'Completed' | 'Cancelled'): Promise<boolean> {
+    if (this.isPostgres() && pool) {
+      await pool.query('UPDATE interviews SET status = $2 WHERE id = $1', [id, status]);
+      return true;
+    }
+    jsonDb.interviews = jsonDb.interviews || [];
+    const idx = jsonDb.interviews.findIndex(i => i.id === id);
+    if (idx === -1) return false;
+    jsonDb.interviews[idx].status = status;
+    saveJsonDb();
+    return true;
+  },
+
+  async getInterviewFeedback(interview_id: number): Promise<InterviewFeedback[]> {
+    if (this.isPostgres() && pool) {
+      const res = await pool.query(`
+        SELECT f.*, e.first_name || ' ' || e.last_name as interviewer_name
+        FROM interview_feedback f
+        LEFT JOIN employees e ON f.interviewer_id = e.id
+        WHERE f.interview_id = $1
+        ORDER BY f.created_at DESC
+      `, [interview_id]);
+      return res.rows;
+    }
+    return (jsonDb.interview_feedback || []).filter(f => f.interview_id === interview_id).map(f => {
+      const emp = jsonDb.employees.find(e => e.id === f.interviewer_id);
+      return { ...f, interviewer_name: emp ? `${emp.first_name} ${emp.last_name}` : undefined };
+    });
+  },
+
+  async createInterviewFeedback(interview_id: number, interviewer_id: number | null, feedback_text: string, score: number): Promise<InterviewFeedback> {
+    if (this.isPostgres() && pool) {
+      const res = await pool.query(`
+        INSERT INTO interview_feedback (interview_id, interviewer_id, feedback_text, score)
+        VALUES ($1, $2, $3, $4)
+        RETURNING *
+      `, [interview_id, interviewer_id, feedback_text, score]);
+      return res.rows[0];
+    }
+    const newFb: InterviewFeedback = {
+      id: (jsonDb.interview_feedback || []).length > 0 ? Math.max(...jsonDb.interview_feedback.map(f => f.id)) + 1 : 1,
+      interview_id,
+      interviewer_id,
+      feedback_text,
+      score,
+      created_at: new Date().toISOString()
+    };
+    jsonDb.interview_feedback = jsonDb.interview_feedback || [];
+    jsonDb.interview_feedback.push(newFb);
+    saveJsonDb();
+    return newFb;
+  },
+
+  async getCandidateDocuments(candidate_id: number): Promise<CandidateDocument[]> {
+    if (this.isPostgres() && pool) {
+      const res = await pool.query('SELECT * FROM candidate_documents WHERE candidate_id = $1 ORDER BY uploaded_at DESC', [candidate_id]);
+      return res.rows;
+    }
+    return (jsonDb.candidate_documents || []).filter(d => d.candidate_id === candidate_id).sort((a, b) => new Date(b.uploaded_at || 0).getTime() - new Date(a.uploaded_at || 0).getTime());
+  },
+
+  async createCandidateDocument(candidate_id: number, name: string, file_path: string, file_type: string): Promise<CandidateDocument> {
+    if (this.isPostgres() && pool) {
+      const res = await pool.query(`
+        INSERT INTO candidate_documents (candidate_id, name, file_path, file_type)
+        VALUES ($1, $2, $3, $4)
+        RETURNING *
+      `, [candidate_id, name, file_path, file_type]);
+      return res.rows[0];
+    }
+    const newDoc: CandidateDocument = {
+      id: (jsonDb.candidate_documents || []).length > 0 ? Math.max(...jsonDb.candidate_documents.map(d => d.id)) + 1 : 1,
+      candidate_id,
+      name,
+      file_path,
+      file_type,
+      uploaded_at: new Date().toISOString()
+    };
+    jsonDb.candidate_documents = jsonDb.candidate_documents || [];
+    jsonDb.candidate_documents.push(newDoc);
+    saveJsonDb();
+    return newDoc;
+  },
+
+  // --- ONBOARDING MODULE CRUDS ---
+  async getOnboardingTasks(): Promise<OnboardingTask[]> {
+    if (this.isPostgres() && pool) {
+      const res = await pool.query('SELECT * FROM onboarding_tasks ORDER BY id ASC');
+      return res.rows;
+    }
+    return jsonDb.onboarding_tasks || [];
+  },
+
+  async createOnboardingTask(title: string, description?: string | null, role_restriction?: string | null, department_id?: number | null, is_document_upload = false, is_asset_allocation = false, is_training_assignment = false): Promise<OnboardingTask> {
+    if (this.isPostgres() && pool) {
+      const res = await pool.query(`
+        INSERT INTO onboarding_tasks (title, description, role_restriction, department_id, is_document_upload, is_asset_allocation, is_training_assignment)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        RETURNING *
+      `, [title, description || null, role_restriction || null, department_id || null, is_document_upload, is_asset_allocation, is_training_assignment]);
+      return res.rows[0];
+    }
+    const newTask: OnboardingTask = {
+      id: (jsonDb.onboarding_tasks || []).length > 0 ? Math.max(...jsonDb.onboarding_tasks.map(t => t.id)) + 1 : 1,
+      title,
+      description: description || null,
+      role_restriction: role_restriction || null,
+      department_id: department_id || null,
+      is_document_upload,
+      is_asset_allocation,
+      is_training_assignment
+    };
+    jsonDb.onboarding_tasks = jsonDb.onboarding_tasks || [];
+    jsonDb.onboarding_tasks.push(newTask);
+    saveJsonDb();
+    return newTask;
+  },
+
+  async getEmployeeOnboardingProgress(employee_id: number): Promise<OnboardingProgress[]> {
+    if (this.isPostgres() && pool) {
+      const res = await pool.query(`
+        SELECT op.*, 
+               ot.title as task_title, ot.description as task_description,
+               ot.is_document_upload, ot.is_asset_allocation, ot.is_training_assignment
+        FROM onboarding_progress op
+        JOIN onboarding_tasks ot ON op.task_id = ot.id
+        WHERE op.employee_id = $1
+        ORDER BY ot.id ASC
+      `, [employee_id]);
+      return res.rows;
+    }
+    return (jsonDb.onboarding_progress || []).filter(p => p.employee_id === employee_id).map(p => {
+      const task = jsonDb.onboarding_tasks.find(t => t.id === p.task_id);
+      return {
+        ...p,
+        task_title: task ? task.title : undefined,
+        task: task
+      };
+    });
+  },
+
+  async updateOnboardingProgress(employee_id: number, task_id: number, status: OnboardingProgress['status'], document_url?: string | null, verified_by?: number | null): Promise<boolean> {
+    if (this.isPostgres() && pool) {
+      const completedAt = status === 'Completed' ? new Date() : null;
+      await pool.query(`
+        INSERT INTO onboarding_progress (employee_id, task_id, status, completed_at, document_url, verified_by)
+        VALUES ($1, $2, $3, $4, $5, $6)
+        ON CONFLICT (employee_id, task_id)
+        DO UPDATE SET status = $3, completed_at = $4, document_url = $5, verified_by = $6
+      `, [employee_id, task_id, status, completedAt, document_url || null, verified_by || null]);
+      return true;
+    }
+    jsonDb.onboarding_progress = jsonDb.onboarding_progress || [];
+    const idx = jsonDb.onboarding_progress.findIndex(p => p.employee_id === employee_id && p.task_id === task_id);
+    const completedAt = status === 'Completed' ? new Date().toISOString() : null;
+    if (idx !== -1) {
+      jsonDb.onboarding_progress[idx] = {
+        ...jsonDb.onboarding_progress[idx],
+        status,
+        completed_at: completedAt,
+        document_url: document_url || null,
+        verified_by: verified_by || null
+      };
+    } else {
+      const newId = jsonDb.onboarding_progress.length > 0 ? Math.max(...jsonDb.onboarding_progress.map(p => p.id)) + 1 : 1;
+      jsonDb.onboarding_progress.push({
+        id: newId,
+        employee_id,
+        task_id,
+        status,
+        completed_at: completedAt,
+        document_url: document_url || null,
+        verified_by: verified_by || null
+      });
+    }
+    saveJsonDb();
+    return true;
+  },
+
+  // --- PAYROLL FOUNDATION CRUDS ---
+  async getSalaryStructures(): Promise<SalaryStructure[]> {
+    if (this.isPostgres() && pool) {
+      const res = await pool.query('SELECT * FROM salary_structures ORDER BY name ASC');
+      return res.rows;
+    }
+    return jsonDb.salary_structures || [];
+  },
+
+  async createSalaryStructure(name: string, base_salary: number, allowances: Record<string, number>, deductions: Record<string, number>): Promise<SalaryStructure> {
+    if (this.isPostgres() && pool) {
+      const res = await pool.query(`
+        INSERT INTO salary_structures (name, base_salary, allowances, deductions)
+        VALUES ($1, $2, $3, $4)
+        RETURNING *
+      `, [name, base_salary, JSON.stringify(allowances), JSON.stringify(deductions)]);
+      return res.rows[0];
+    }
+    const newStr: SalaryStructure = {
+      id: (jsonDb.salary_structures || []).length > 0 ? Math.max(...jsonDb.salary_structures.map(s => s.id)) + 1 : 1,
+      name,
+      base_salary,
+      allowances,
+      deductions,
+      created_at: new Date().toISOString()
+    };
+    jsonDb.salary_structures = jsonDb.salary_structures || [];
+    jsonDb.salary_structures.push(newStr);
+    saveJsonDb();
+    return newStr;
+  },
+
+  async getEmployeeSalary(employee_id: number): Promise<EmployeeSalary | null> {
+    if (this.isPostgres() && pool) {
+      const res = await pool.query(`
+        SELECT es.*, ss.name as structure_name, ss.base_salary, ss.allowances, ss.deductions
+        FROM employee_salary es
+        JOIN salary_structures ss ON es.structure_id = ss.id
+        WHERE es.employee_id = $1
+      `, [employee_id]);
+      return res.rows[0] || null;
+    }
+    const es = (jsonDb.employee_salary || []).find(s => s.employee_id === employee_id);
+    if (!es) return null;
+    const structure = jsonDb.salary_structures.find(s => s.id === es.structure_id);
+    return {
+      ...es,
+      structure_name: structure ? structure.name : undefined,
+      allowances: structure ? structure.allowances : undefined,
+      deductions: structure ? structure.deductions : undefined,
+      base_salary: structure ? structure.base_salary : undefined
+    } as any;
+  },
+
+  async assignEmployeeSalary(employee_id: number, structure_id: number, bank_name: string | null, account_number: string | null, tax_identifier: string | null, effective_date: string): Promise<EmployeeSalary> {
+    if (this.isPostgres() && pool) {
+      const res = await pool.query(`
+        INSERT INTO employee_salary (employee_id, structure_id, bank_name, account_number, tax_identifier, effective_date)
+        VALUES ($1, $2, $3, $4, $5, $6)
+        ON CONFLICT (employee_id)
+        DO UPDATE SET structure_id = $2, bank_name = $3, account_number = $4, tax_identifier = $5, effective_date = $6
+        RETURNING *
+      `, [employee_id, structure_id, bank_name || null, account_number || null, tax_identifier || null, effective_date]);
+      return res.rows[0];
+    }
+    jsonDb.employee_salary = jsonDb.employee_salary || [];
+    const idx = jsonDb.employee_salary.findIndex(s => s.employee_id === employee_id);
+    if (idx !== -1) {
+      jsonDb.employee_salary[idx] = {
+        ...jsonDb.employee_salary[idx],
+        structure_id,
+        bank_name: bank_name || null,
+        account_number: account_number || null,
+        tax_identifier: tax_identifier || null,
+        effective_date
+      };
+      saveJsonDb();
+      return jsonDb.employee_salary[idx];
+    }
+    const newSal: EmployeeSalary = {
+      id: jsonDb.employee_salary.length > 0 ? Math.max(...jsonDb.employee_salary.map(s => s.id)) + 1 : 1,
+      employee_id,
+      structure_id,
+      bank_name: bank_name || null,
+      account_number: account_number || null,
+      tax_identifier: tax_identifier || null,
+      effective_date,
+      created_at: new Date().toISOString()
+    };
+    jsonDb.employee_salary.push(newSal);
+    saveJsonDb();
+    return newSal;
+  },
+
+  // --- SOCIAL CONNECT 2.0 CRUDS ---
+  async getPosts(current_employee_id?: number): Promise<Post[]> {
+    if (this.isPostgres() && pool) {
+      const res = await pool.query(`
+        SELECT p.*,
+               e.first_name || ' ' || e.last_name as employee_name,
+               e.avatar_url as employee_avatar,
+               (SELECT COUNT(*) FROM comments WHERE post_id = p.id) as comments_count,
+               (
+                 SELECT jsonb_object_agg(reaction_type, cnt)
+                 FROM (
+                   SELECT reaction_type, COUNT(*) as cnt
+                   FROM reactions
+                   WHERE post_id = p.id
+                   GROUP BY reaction_type
+                 ) r
+               ) as reactions,
+               (SELECT reaction_type FROM reactions WHERE post_id = p.id AND employee_id = $1 LIMIT 1) as user_reaction
+        FROM posts p
+        LEFT JOIN employees e ON p.employee_id = e.id
+        ORDER BY p.is_pinned DESC, p.created_at DESC
+      `, [current_employee_id || 0]);
+      return res.rows;
+    }
+    
+    return (jsonDb.posts || []).map(p => {
+      const emp = jsonDb.employees.find(e => e.id === p.employee_id);
+      const comments_count = (jsonDb.comments || []).filter(c => c.post_id === p.id).length;
+      
+      const reactionsList = (jsonDb.reactions || []).filter(r => r.post_id === p.id);
+      const reactions: { [type: string]: number } = {};
+      reactionsList.forEach(r => {
+        reactions[r.reaction_type] = (reactions[r.reaction_type] || 0) + 1;
+      });
+      
+      const userReactionObj = reactionsList.find(r => r.employee_id === current_employee_id);
+      const user_reaction = userReactionObj ? userReactionObj.reaction_type : null;
+      
+      const poll = (jsonDb.polls || []).find(pl => pl.post_id === p.id);
+      let pollData = null;
+      if (poll) {
+        const votesList = (jsonDb.poll_votes || []).filter(v => v.poll_id === poll.id);
+        const votes: { [key: number]: number } = {};
+        votesList.forEach(v => {
+          votes[v.option_index] = (votes[v.option_index] || 0) + 1;
+        });
+        const userVoteObj = votesList.find(v => v.employee_id === current_employee_id);
+        const user_vote = userVoteObj ? userVoteObj.option_index : null;
+        pollData = { ...poll, votes, user_vote };
+      }
+
+      return {
+        ...p,
+        employee_name: emp ? `${emp.first_name} ${emp.last_name}` : undefined,
+        employee_avatar: emp ? emp.avatar_url : undefined,
+        comments_count,
+        reactions: Object.keys(reactions).length > 0 ? reactions : undefined,
+        user_reaction,
+        poll: pollData
+      };
+    }).sort((a, b) => {
+      if (a.is_pinned !== b.is_pinned) {
+        return a.is_pinned ? -1 : 1;
+      }
+      return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
+    });
+  },
+
+  async createPost(employee_id: number, content: string, type: Post['type'] = 'General', attachments: string[] = []): Promise<Post> {
+    if (this.isPostgres() && pool) {
+      const res = await pool.query(`
+        INSERT INTO posts (employee_id, content, type, attachments, is_pinned)
+        VALUES ($1, $2, $3, $4, FALSE)
+        RETURNING *
+      `, [employee_id, content, type, JSON.stringify(attachments)]);
+      return res.rows[0];
+    }
+    const newPost: Post = {
+      id: (jsonDb.posts || []).length > 0 ? Math.max(...jsonDb.posts.map(p => p.id)) + 1 : 1,
+      employee_id,
+      content,
+      type,
+      attachments,
+      is_pinned: false,
+      created_at: new Date().toISOString()
+    };
+    jsonDb.posts = jsonDb.posts || [];
+    jsonDb.posts.push(newPost);
+    saveJsonDb();
+    return newPost;
+  },
+
+  async pinPost(id: number, is_pinned: boolean): Promise<boolean> {
+    if (this.isPostgres() && pool) {
+      await pool.query('UPDATE posts SET is_pinned = $2 WHERE id = $1', [id, is_pinned]);
+      return true;
+    }
+    jsonDb.posts = jsonDb.posts || [];
+    const idx = jsonDb.posts.findIndex(p => p.id === id);
+    if (idx === -1) return false;
+    jsonDb.posts[idx].is_pinned = is_pinned;
+    saveJsonDb();
+    return true;
+  },
+
+  async getComments(post_id: number): Promise<Comment[]> {
+    if (this.isPostgres() && pool) {
+      const res = await pool.query(`
+        SELECT c.*,
+               e.first_name || ' ' || e.last_name as employee_name,
+               e.avatar_url as employee_avatar
+        FROM comments c
+        LEFT JOIN employees e ON c.employee_id = e.id
+        WHERE c.post_id = $1
+        ORDER BY c.created_at ASC
+      `, [post_id]);
+      return res.rows;
+    }
+    return (jsonDb.comments || []).filter(c => c.post_id === post_id).map(c => {
+      const emp = jsonDb.employees.find(e => e.id === c.employee_id);
+      return {
+        ...c,
+        employee_name: emp ? `${emp.first_name} ${emp.last_name}` : undefined,
+        employee_avatar: emp ? emp.avatar_url : undefined
+      };
+    }).sort((a, b) => new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime());
+  },
+
+  async createComment(post_id: number, employee_id: number, content: string): Promise<Comment> {
+    if (this.isPostgres() && pool) {
+      const res = await pool.query(`
+        INSERT INTO comments (post_id, employee_id, content)
+        VALUES ($1, $2, $3)
+        RETURNING *
+      `, [post_id, employee_id, content]);
+      return res.rows[0];
+    }
+    const newComm: Comment = {
+      id: (jsonDb.comments || []).length > 0 ? Math.max(...jsonDb.comments.map(c => c.id)) + 1 : 1,
+      post_id,
+      employee_id,
+      content,
+      created_at: new Date().toISOString()
+    };
+    jsonDb.comments = jsonDb.comments || [];
+    jsonDb.comments.push(newComm);
+    saveJsonDb();
+    return newComm;
+  },
+
+  async reactPost(post_id: number, employee_id: number, reaction_type: string | null): Promise<boolean> {
+    if (this.isPostgres() && pool) {
+      if (reaction_type === null) {
+        await pool.query('DELETE FROM reactions WHERE post_id = $1 AND employee_id = $2', [post_id, employee_id]);
+      } else {
+        await pool.query(`
+          INSERT INTO reactions (post_id, employee_id, reaction_type)
+          VALUES ($1, $2, $3)
+          ON CONFLICT (post_id, employee_id)
+          DO UPDATE SET reaction_type = $3
+        `, [post_id, employee_id, reaction_type]);
+      }
+      return true;
+    }
+    
+    jsonDb.reactions = jsonDb.reactions || [];
+    const idx = jsonDb.reactions.findIndex(r => r.post_id === post_id && r.employee_id === employee_id);
+    if (reaction_type === null) {
+      if (idx !== -1) jsonDb.reactions.splice(idx, 1);
+    } else {
+      if (idx !== -1) {
+        jsonDb.reactions[idx].reaction_type = reaction_type;
+      } else {
+        jsonDb.reactions.push({ post_id, employee_id, reaction_type });
+      }
+    }
+    saveJsonDb();
+    return true;
+  },
+
+  async getPollForPost(post_id: number, employee_id?: number): Promise<Poll | null> {
+    if (this.isPostgres() && pool) {
+      const res = await pool.query('SELECT * FROM polls WHERE post_id = $1', [post_id]);
+      if (res.rows.length === 0) return null;
+      const poll = res.rows[0];
+      
+      const votesRes = await pool.query('SELECT option_index, COUNT(*) as cnt FROM poll_votes WHERE poll_id = $1 GROUP BY option_index', [poll.id]);
+      const votes: { [key: number]: number } = {};
+      votesRes.rows.forEach(r => {
+        votes[parseInt(r.option_index)] = parseInt(r.cnt);
+      });
+
+      const myVoteRes = await pool.query('SELECT option_index FROM poll_votes WHERE poll_id = $1 AND employee_id = $2', [poll.id, employee_id || 0]);
+      const user_vote = myVoteRes.rows.length > 0 ? myVoteRes.rows[0].option_index : null;
+
+      return { ...poll, votes, user_vote };
+    }
+    const poll = (jsonDb.polls || []).find(p => p.post_id === post_id);
+    if (!poll) return null;
+    const votesList = (jsonDb.poll_votes || []).filter(v => v.poll_id === poll.id);
+    const votes: { [key: number]: number } = {};
+    votesList.forEach(v => {
+      votes[v.option_index] = (votes[v.option_index] || 0) + 1;
+    });
+    const userVoteObj = votesList.find(v => v.employee_id === employee_id);
+    const user_vote = userVoteObj ? userVoteObj.option_index : null;
+    return { ...poll, votes, user_vote };
+  },
+
+  async createPoll(post_id: number, question: string, options: string[]): Promise<Poll> {
+    if (this.isPostgres() && pool) {
+      const res = await pool.query(`
+        INSERT INTO polls (post_id, question, options)
+        VALUES ($1, $2, $3)
+        RETURNING *
+      `, [post_id, question, JSON.stringify(options)]);
+      return res.rows[0];
+    }
+    const newPoll: Poll = {
+      id: (jsonDb.polls || []).length > 0 ? Math.max(...jsonDb.polls.map(p => p.id)) + 1 : 1,
+      post_id,
+      question,
+      options,
+      created_at: new Date().toISOString()
+    };
+    jsonDb.polls = jsonDb.polls || [];
+    jsonDb.polls.push(newPoll);
+    saveJsonDb();
+    return newPoll;
+  },
+
+  async votePoll(poll_id: number, employee_id: number, option_index: number): Promise<boolean> {
+    if (this.isPostgres() && pool) {
+      await pool.query(`
+        INSERT INTO poll_votes (poll_id, employee_id, option_index)
+        VALUES ($1, $2, $3)
+        ON CONFLICT (poll_id, employee_id)
+        DO UPDATE SET option_index = $3
+      `, [poll_id, employee_id, option_index]);
+      return true;
+    }
+    
+    jsonDb.poll_votes = jsonDb.poll_votes || [];
+    const idx = jsonDb.poll_votes.findIndex(v => v.poll_id === poll_id && v.employee_id === employee_id);
+    if (idx !== -1) {
+      jsonDb.poll_votes[idx].option_index = option_index;
+    } else {
+      jsonDb.poll_votes.push({ poll_id, employee_id, option_index });
+    }
+    saveJsonDb();
+    return true;
   },
 
   getJsonDb() {

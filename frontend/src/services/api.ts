@@ -5,7 +5,8 @@ import {
   LeaveType, LeaveBalance, LeaveRequest, LeaveDashboardData,
   AttendanceStatus, Attendance, AttendanceAnalytics,
   Task, TaskComment, TaskActivity,
-  Asset, AssetAssignment, AssetHistory
+  Asset, AssetAssignment, AssetHistory,
+  Permission, RolePermission, Shift, EmployeeShift, Job, Candidate, Interview, InterviewFeedback, CandidateDocument, OnboardingTask, OnboardingProgress, SalaryStructure, EmployeeSalary, Post, Comment, Reaction, Poll, PollVote
 } from '../types';
 
 export const SERVER_URL = (import.meta.env.VITE_SERVER_URL as string) || '';
@@ -574,6 +575,178 @@ export const api = {
   },
   async deleteProductivityClassification(id: number): Promise<any> {
     const res = await apiClient.delete(`/productivity/classifications/${id}`);
+    return res.data;
+  },
+
+  // Permissions Matrix API
+  async getPermissions(): Promise<Permission[]> {
+    const res = await apiClient.get('/permissions');
+    return res.data;
+  },
+  async getRolePermissions(role: string): Promise<string[]> {
+    const res = await apiClient.get(`/permissions/role/${role}`);
+    return res.data;
+  },
+  async assignRolePermissions(role: string, permissionIds: number[]): Promise<any> {
+    const res = await apiClient.post('/permissions/assign', { role, permissionIds });
+    return res.data;
+  },
+
+  // Shift Management API
+  async getShifts(): Promise<Shift[]> {
+    const res = await apiClient.get('/shifts');
+    return res.data;
+  },
+  async createShift(payload: Omit<Shift, 'id'>): Promise<Shift> {
+    const res = await apiClient.post('/shifts', payload);
+    return res.data;
+  },
+  async updateShift(id: number, payload: Partial<Omit<Shift, 'id'>>): Promise<Shift> {
+    const res = await apiClient.put(`/shifts/${id}`, payload);
+    return res.data;
+  },
+  async deleteShift(id: number): Promise<any> {
+    const res = await apiClient.delete(`/shifts/${id}`);
+    return res.data;
+  },
+  async getEmployeeShifts(params?: { startDate?: string; endDate?: string; employeeId?: number }): Promise<EmployeeShift[]> {
+    const res = await apiClient.get('/shifts/employee', { params });
+    return res.data;
+  },
+  async assignEmployeeShift(payload: { employee_id: number; shift_id: number; date: string }): Promise<EmployeeShift> {
+    const res = await apiClient.post('/shifts/assign', payload);
+    return res.data;
+  },
+  async requestShiftSwap(payload: { employeeShiftId: number; targetEmployeeId: number; remarks?: string }): Promise<EmployeeShift> {
+    const res = await apiClient.post('/shifts/swap-request', payload);
+    return res.data;
+  },
+  async processShiftSwap(payload: { employeeShiftId: number; status: 'Approved' | 'Rejected' }): Promise<any> {
+    const res = await apiClient.post('/shifts/swap-approve', payload);
+    return res.data;
+  },
+
+  // Recruitment ATS API
+  async getJobs(): Promise<Job[]> {
+    const res = await apiClient.get('/recruitment/jobs');
+    return res.data;
+  },
+  async createJob(payload: Omit<Job, 'id' | 'created_at'>): Promise<Job> {
+    const res = await apiClient.post('/recruitment/jobs', payload);
+    return res.data;
+  },
+  async getCandidates(params?: { job_id?: number }): Promise<Candidate[]> {
+    const res = await apiClient.get('/recruitment/candidates', { params });
+    return res.data;
+  },
+  async getCandidateById(id: number): Promise<Candidate> {
+    const res = await apiClient.get(`/recruitment/candidates/${id}`);
+    return res.data;
+  },
+  async applyJob(formData: FormData): Promise<Candidate> {
+    const res = await apiClient.post('/recruitment/candidates', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+    return res.data;
+  },
+  async updateCandidateStage(id: number, stage: Candidate['stage']): Promise<Candidate> {
+    const res = await apiClient.post(`/recruitment/candidates/${id}/stage`, { stage });
+    return res.data;
+  },
+  async getInterviews(params?: { candidate_id?: number }): Promise<Interview[]> {
+    const res = await apiClient.get('/recruitment/interviews', { params });
+    return res.data;
+  },
+  async createInterview(payload: Omit<Interview, 'id' | 'status' | 'created_at'>): Promise<Interview> {
+    const res = await apiClient.post('/recruitment/interviews', payload);
+    return res.data;
+  },
+  async updateInterviewStatus(id: number, status: Interview['status']): Promise<any> {
+    const res = await apiClient.put(`/recruitment/interviews/${id}`, { status });
+    return res.data;
+  },
+  async getInterviewFeedback(interviewId: number): Promise<InterviewFeedback[]> {
+    const res = await apiClient.get(`/recruitment/interviews/${interviewId}/feedback`);
+    return res.data;
+  },
+  async createInterviewFeedback(interviewId: number, payload: { feedback_text: string; score: number }): Promise<InterviewFeedback> {
+    const res = await apiClient.post(`/recruitment/interviews/${interviewId}/feedback`, payload);
+    return res.data;
+  },
+  async getCandidateDocuments(candidateId: number): Promise<CandidateDocument[]> {
+    const res = await apiClient.get(`/recruitment/candidates/${candidateId}/documents`);
+    return res.data;
+  },
+  async uploadCandidateDocument(candidateId: number, formData: FormData): Promise<CandidateDocument> {
+    const res = await apiClient.post(`/recruitment/candidates/${candidateId}/documents`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+    return res.data;
+  },
+
+  // Onboarding API
+  async getOnboardingTasks(): Promise<OnboardingTask[]> {
+    const res = await apiClient.get('/onboarding/tasks');
+    return res.data;
+  },
+  async createOnboardingTask(payload: Omit<OnboardingTask, 'id'>): Promise<OnboardingTask> {
+    const res = await apiClient.post('/onboarding/tasks', payload);
+    return res.data;
+  },
+  async getEmployeeOnboarding(employeeId: number): Promise<OnboardingProgress[]> {
+    const res = await apiClient.get(`/onboarding/${employeeId}`);
+    return res.data;
+  },
+  async updateOnboardingProgress(payload: { employee_id: number; taskId: number; status: OnboardingProgress['status']; documentUrl?: string | null; verifiedBy?: number | null }): Promise<any> {
+    const res = await apiClient.post('/onboarding/progress/complete', payload);
+    return res.data;
+  },
+
+  // Payroll API
+  async getSalaryStructures(): Promise<SalaryStructure[]> {
+    const res = await apiClient.get('/payroll/structures');
+    return res.data;
+  },
+  async createSalaryStructure(payload: Omit<SalaryStructure, 'id' | 'created_at'>): Promise<SalaryStructure> {
+    const res = await apiClient.post('/payroll/structures', payload);
+    return res.data;
+  },
+  async getEmployeeSalary(employeeId: number): Promise<EmployeeSalary> {
+    const res = await apiClient.get(`/payroll/employee/${employeeId}`);
+    return res.data;
+  },
+  async assignEmployeeSalary(payload: Omit<EmployeeSalary, 'id' | 'created_at'>): Promise<EmployeeSalary> {
+    const res = await apiClient.post('/payroll/employee/assign', payload);
+    return res.data;
+  },
+
+  // Social Connect API
+  async getPosts(): Promise<Post[]> {
+    const res = await apiClient.get('/social/posts');
+    return res.data;
+  },
+  async createPost(payload: { content: string; type?: Post['type']; attachments?: string[]; poll?: { question: string; options: string[] } }): Promise<Post> {
+    const res = await apiClient.post('/social/posts', payload);
+    return res.data;
+  },
+  async getComments(postId: number): Promise<Comment[]> {
+    const res = await apiClient.get(`/social/posts/${postId}/comments`);
+    return res.data;
+  },
+  async createComment(postId: number, payload: { content: string }): Promise<Comment> {
+    const res = await apiClient.post(`/social/posts/${postId}/comment`, payload);
+    return res.data;
+  },
+  async reactPost(postId: number, payload: { reaction_type: string | null }): Promise<any> {
+    const res = await apiClient.post(`/social/posts/${postId}/react`, payload);
+    return res.data;
+  },
+  async pinPost(postId: number, payload: { is_pinned: boolean }): Promise<any> {
+    const res = await apiClient.post(`/social/posts/${postId}/pin`, payload);
+    return res.data;
+  },
+  async votePoll(pollId: number, payload: { option_index: number }): Promise<any> {
+    const res = await apiClient.post(`/social/polls/${pollId}/vote`, payload);
     return res.data;
   }
 };

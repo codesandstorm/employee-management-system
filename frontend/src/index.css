@@ -3,18 +3,19 @@
 :root {
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   
-  /* Color Palette - Emerald Design System */
-  --bg-primary: #F8FAFC;
+  /* Color Palette - Option A: Ink & Amber Theme */
+  --primary-color: #1E2A4A;
+  --bg-primary: #F7F8FA;
   --bg-card: #FFFFFF;
-  --text-primary: #0F172A;
-  --text-secondary: #64748B;
-  --border-color: #E2E8F0;
-  --accent-color: #10B981;
-  --success-color: #22C55E;
-  --danger-color: #EF4444;
-  --warning-color: #F59E0B;
-  --hover-color: #F1F5F9;
-  --active-nav: rgba(16, 185, 129, 0.15);
+  --text-primary: #101828;
+  --text-secondary: #667085;
+  --border-color: #E4E7EC;
+  --accent-color: #F5A524;
+  --success-color: #2DBE8C;
+  --danger-color: #E5484D;
+  --warning-color: #F5A524;
+  --hover-color: #F8FAFC;
+  --active-nav: rgba(245, 165, 36, 0.15);
   
   /* Transitions */
   --transition-smooth: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
@@ -38,13 +39,13 @@ body {
 }
 
 a {
-  color: var(--accent-color);
+  color: var(--primary-color);
   text-decoration: none;
   transition: var(--transition-smooth);
 }
 
 a:hover {
-  color: #059669;
+  color: var(--accent-color);
 }
 
 /* Typography elements */
@@ -185,8 +186,8 @@ h3, .card-title {
 
 /* AntD Overrides for visual excellence */
 .ant-btn-primary {
-  background-color: var(--accent-color) !important;
-  border-color: var(--accent-color) !important;
+  background-color: var(--primary-color) !important;
+  border-color: var(--primary-color) !important;
   color: #FFFFFF !important;
   box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05) !important;
   border-radius: 8px !important;
@@ -197,8 +198,8 @@ h3, .card-title {
 }
 
 .ant-btn-primary:hover {
-  background-color: #059669 !important;
-  border-color: #059669 !important;
+  background-color: #2C3E6B !important;
+  border-color: #2C3E6B !important;
 }
 
 .ant-btn-default {

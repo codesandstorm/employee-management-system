@@ -20,7 +20,11 @@ import {
   TeamOutlined,
   BarChartOutlined,
   HistoryOutlined,
-  DesktopOutlined
+  DesktopOutlined,
+  SolutionOutlined,
+  DollarOutlined,
+  CommentOutlined,
+  SafetyCertificateOutlined
 } from '@ant-design/icons';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -152,6 +156,12 @@ export const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children })
     if (path.startsWith('/reports')) return '/reports';
     if (path.startsWith('/audit-logs')) return '/audit-logs';
     if (path.startsWith('/assets')) return '/assets';
+    if (path.startsWith('/roster')) return '/roster';
+    if (path.startsWith('/recruitment')) return '/recruitment';
+    if (path.startsWith('/onboarding')) return '/onboarding';
+    if (path.startsWith('/payroll')) return '/payroll';
+    if (path.startsWith('/social')) return '/social';
+    if (path.startsWith('/ess')) return '/ess';
     if (path.startsWith('/settings')) return '/settings';
     return '/';
   };
@@ -161,16 +171,16 @@ export const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children })
       return true;
     }
     if (role === 'HR') {
-      return ['/', '/employees', '/skills', '/documents', '/leaves', '/attendance', '/reports', '/assets'].includes(key);
+      return ['/', '/employees', '/skills', '/documents', '/leaves', '/attendance', '/reports', '/assets', '/roster', '/recruitment', '/onboarding', '/payroll', '/social', '/ess'].includes(key);
     }
     if (role === 'Manager') {
-      return ['/', '/projects', '/teams', '/tasks', '/attendance', '/leaves', '/assets'].includes(key);
+      return ['/', '/projects', '/teams', '/tasks', '/attendance', '/leaves', '/assets', '/roster', '/recruitment', '/onboarding', '/social', '/ess'].includes(key);
     }
     if (role === 'Employee') {
-      return ['/', '/tasks', '/attendance', '/leaves', '/projects', '/assets'].includes(key);
+      return ['/', '/tasks', '/attendance', '/leaves', '/projects', '/assets', '/roster', '/onboarding', '/social', '/ess'].includes(key);
     }
     if (role === 'Intern') {
-      return ['/', '/tasks', '/attendance', '/leaves', '/assets'].includes(key);
+      return ['/', '/tasks', '/attendance', '/leaves', '/assets', '/roster', '/onboarding', '/social', '/ess'].includes(key);
     }
     return false;
   };
@@ -178,6 +188,7 @@ export const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children })
   // Build menu items
   const menuItems = [
     { key: '/', icon: <DashboardOutlined />, label: 'Dashboard' },
+    { key: '/ess', icon: <UserOutlined />, label: 'My ESS Portal' },
     { key: '/employees', icon: <UserOutlined />, label: 'Employees' },
     { key: '/departments', icon: <AppstoreOutlined />, label: 'Departments' },
     { key: '/teams', icon: <TeamOutlined />, label: 'Teams' },
@@ -185,6 +196,11 @@ export const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children })
     { key: '/skills', icon: <BulbOutlined />, label: 'Skills' },
     { key: '/documents', icon: <FileTextOutlined />, label: 'Documents' },
     { key: '/assets', icon: <DesktopOutlined />, label: 'Assets' },
+    { key: '/roster', icon: <CalendarOutlined />, label: 'Shift Roster' },
+    { key: '/recruitment', icon: <SolutionOutlined />, label: 'Recruitment Hub' },
+    { key: '/onboarding', icon: <SafetyCertificateOutlined />, label: 'Onboarding Check' },
+    { key: '/payroll', icon: <DollarOutlined />, label: 'Payroll Center' },
+    { key: '/social', icon: <CommentOutlined />, label: 'Social Connect' },
     { key: '/leaves', icon: <CalendarOutlined />, label: 'Leaves' },
     { key: '/attendance', icon: <ClockCircleOutlined />, label: 'Attendance' },
     { key: '/tasks', icon: <CheckSquareOutlined />, label: 'Tasks' },
@@ -250,14 +266,14 @@ export const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children })
         display: 'flex',
         alignItems: 'center',
         padding: '0 24px',
-        borderBottom: '1px solid #1E293B',
+        borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
         gap: 12
       }}>
         <div style={{
           width: 24,
           height: 24,
           borderRadius: 6,
-          background: '#10B981',
+          background: '#F5A524',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -275,7 +291,7 @@ export const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children })
             color: '#FFFFFF',
             fontFamily: 'var(--font-sans)'
           }}>
-            Social Connect
+            HR Enterprise
           </span>
         )}
       </div>
@@ -295,14 +311,14 @@ export const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children })
   );
 
   return (
-    <Layout style={{ minHeight: '100vh', background: '#F8FAFC' }}>
+    <Layout style={{ minHeight: '100vh', background: '#F7F8FA' }}>
       {/* MOBILE DRAWER SIDEBAR */}
       {isMobile ? (
         <Drawer
           placement="left"
           onClose={() => setMobileMenuVisible(false)}
           open={mobileMenuVisible}
-          bodyStyle={{ padding: 0, background: '#0F172A' }}
+          bodyStyle={{ padding: 0, background: '#1E2A4A' }}
           headerStyle={{ display: 'none' }}
           width={240}
         >
@@ -319,14 +335,14 @@ export const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children })
           width={240}
           theme="dark"
           style={{
-            borderRight: '1px solid #1E293B',
+            borderRight: '1px solid rgba(255, 255, 255, 0.1)',
             position: 'fixed',
             left: 0,
             top: 0,
             bottom: 0,
             zIndex: 100,
             height: '100vh',
-            background: '#0F172A',
+            background: '#1E2A4A',
             overflowY: 'auto'
           }}
         >
@@ -337,7 +353,7 @@ export const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children })
       <Layout style={{ 
         marginLeft: isMobile ? 0 : (collapsed ? 80 : 240), 
         transition: 'all 0.2s',
-        background: '#F8FAFC'
+        background: '#F7F8FA'
       }}>
         {/* TOP HEADER */}
         <Header style={{

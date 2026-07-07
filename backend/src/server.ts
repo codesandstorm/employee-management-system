@@ -26,6 +26,12 @@ import reportRouter from './routes/reportRoutes';
 import assetRouter from './routes/assetRoutes';
 import deviceRouter from './routes/deviceRoutes';
 import productivityRouter from './routes/productivityRoutes';
+import permissionRouter from './routes/permissionRoutes';
+import shiftRouter from './routes/shiftRoutes';
+import recruitmentRouter from './routes/recruitmentRoutes';
+import onboardingRouter from './routes/onboardingRoutes';
+import payrollRouter from './routes/payrollRoutes';
+import socialRouter from './routes/socialRoutes';
 import { checkUpdate, downloadUpdate, triggerRollbackCommand } from './controllers/updateController';
 import { auditLogger } from './middleware/auditMiddleware';
 import { verifyRequestSecurity } from './middleware/securityMiddleware';
@@ -121,6 +127,12 @@ app.use('/api/productivity', productivityRouter);
 app.use('/api/reports', reportRouter);
 app.use('/api/assets', assetRouter);
 app.use('/api/devices', deviceRouter);
+app.use('/api/permissions', permissionRouter);
+app.use('/api/shifts', shiftRouter);
+app.use('/api/recruitment', recruitmentRouter);
+app.use('/api/onboarding', onboardingRouter);
+app.use('/api/payroll', payrollRouter);
+app.use('/api/social', socialRouter);
 
 // Auto-updater client/server endpoints
 app.get('/updates/check', checkUpdate);

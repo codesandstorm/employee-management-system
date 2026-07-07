@@ -336,5 +336,204 @@ export interface ActivityHeartbeat {
   screenshot_url?: string | null;
 }
 
+// Permissions Matrix Interfaces
+export interface Permission {
+  id: number;
+  name: string;
+  code: string;
+  category: string;
+  description?: string;
+  created_at?: string;
+}
+
+export interface RolePermission {
+  role: string;
+  permission_id: number;
+  permission_name?: string;
+}
+
+// Shift Management Interfaces
+export interface Shift {
+  id: number;
+  name: string;
+  start_time: string;
+  end_time: string;
+  grace_period_mins?: number;
+  description?: string;
+  color: string;
+  created_at?: string;
+}
+
+export interface EmployeeShift {
+  id: number;
+  employee_id: number;
+  shift_id: number;
+  date: string;
+  swap_requested: boolean;
+  swap_target_employee_id?: number | null;
+  swap_status: 'None' | 'Pending' | 'Approved' | 'Rejected';
+  remarks?: string | null;
+  created_at?: string;
+  employee_name?: string;
+  shift_name?: string;
+  shift_start?: string;
+  shift_end?: string;
+  shift_color?: string;
+}
+
+// Recruitment ATS Types
+export interface Job {
+  id: number;
+  title: string;
+  department_id?: number | null;
+  description: string;
+  requirements?: string | null;
+  status: 'Draft' | 'Open' | 'Closed';
+  created_at?: string;
+  department_name?: string;
+}
+
+export interface Candidate {
+  id: number;
+  job_id?: number | null;
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone?: string | null;
+  resume_url: string;
+  stage: 'Applied' | 'Screening' | 'Technical' | 'Manager Round' | 'HR Round' | 'Offer' | 'Joined' | 'Rejected';
+  notes?: string | null;
+  created_at?: string;
+  job_title?: string;
+}
+
+export interface CandidateDocument {
+  id: number;
+  candidate_id: number;
+  name: string;
+  file_path: string;
+  file_type: string;
+  uploaded_at?: string;
+}
+
+export interface Interview {
+  id: number;
+  candidate_id: number;
+  interviewer_id?: number | null;
+  schedule_time: string;
+  stage: string;
+  status: 'Scheduled' | 'Completed' | 'Cancelled';
+  created_at?: string;
+  candidate_name?: string;
+  interviewer_name?: string;
+}
+
+export interface InterviewFeedback {
+  id: number;
+  interview_id: number;
+  interviewer_id?: number | null;
+  feedback_text: string;
+  score: number;
+  created_at?: string;
+  interviewer_name?: string;
+}
+
+// Onboarding Types
+export interface OnboardingTask {
+  id: number;
+  title: string;
+  description?: string | null;
+  role_restriction?: string | null;
+  department_id?: number | null;
+  is_document_upload: boolean;
+  is_asset_allocation: boolean;
+  is_training_assignment: boolean;
+}
+
+export interface OnboardingProgress {
+  id: number;
+  employee_id: number;
+  task_id: number;
+  status: 'Pending' | 'In Progress' | 'Completed';
+  completed_at?: string | null;
+  document_url?: string | null;
+  verified_by?: number | null;
+  task?: OnboardingTask;
+  employee_name?: string;
+  task_title?: string;
+}
+
+// Payroll Types
+export interface SalaryStructure {
+  id: number;
+  name: string;
+  base_salary: number;
+  allowances: Record<string, number>;
+  deductions: Record<string, number>;
+  created_at?: string;
+}
+
+export interface EmployeeSalary {
+  id: number;
+  employee_id: number;
+  structure_id: number;
+  bank_name?: string | null;
+  account_number?: string | null;
+  tax_identifier?: string | null;
+  effective_date: string;
+  created_at?: string;
+  structure_name?: string;
+}
+
+// Social Connect Types
+export interface Post {
+  id: number;
+  employee_id: number;
+  content: string;
+  type: 'General' | 'Announcement' | 'Achievement' | 'Anniversary' | 'Birthday';
+  is_pinned: boolean;
+  attachments: string[];
+  created_at?: string;
+  employee_name?: string;
+  employee_avatar?: string;
+  comments_count?: number;
+  reactions?: { [type: string]: number };
+  user_reaction?: string | null;
+  poll?: Poll | null;
+}
+
+export interface Comment {
+  id: number;
+  post_id: number;
+  employee_id: number;
+  content: string;
+  created_at?: string;
+  employee_name?: string;
+  employee_avatar?: string;
+}
+
+export interface Reaction {
+  post_id: number;
+  employee_id: number;
+  reaction_type: string;
+}
+
+export interface Poll {
+  id: number;
+  post_id: number;
+  question: string;
+  options: string[];
+  created_at?: string;
+  votes?: { [option_index: number]: number };
+  user_vote?: number | null;
+}
+
+export interface PollVote {
+  poll_id: number;
+  employee_id: number;
+  option_index: number;
+}
+
+
 
 

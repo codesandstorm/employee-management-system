@@ -46,6 +46,36 @@ export function requireRole(roles: ('Super Admin' | 'Admin' | 'HR' | 'Manager' |
   };
 }
 
+export function requirePermission(permissionCode: string) {
+  return async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+    if (!req.user) {
+      res.status(401).json({ message: 'Authentication required.' });
+      return;
+    }
+
+    try {
+      // Super Admin and Admin bypass granular permissions checks
+      if (req.user.role === 'Super Admin' || req.user.role === 'Admin') {
+        next();
+        return;
+      }
+
+      const { db } = require('../config/db');
+      const rolePermissions = await db.getRolePermissions(req.user.role);
+      
+      if (rolePermissions.includes(permissionCode)) {
+        next();
+        return;
+      }
+
+      res.status(403).json({ message: `Forbidden: Insufficient permissions (requires: ${permissionCode}).` });
+    } catch (err) {
+      console.error('requirePermission middleware error:', err);
+      res.status(500).json({ message: 'Internal error checking permission matrix.' });
+    }
+  };
+}
+
 import db from '../config/db';
 
 export async function requireApprovedDevice(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {

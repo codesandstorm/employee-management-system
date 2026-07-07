@@ -26,6 +26,12 @@ import { TeamWorkspace } from './pages/teams/TeamWorkspace';
 import { ReportsCenter } from './pages/reports/ReportsCenter';
 import { AuditLogs } from './pages/audit/AuditLogs';
 import { AssetWorkspace } from './pages/assets/AssetWorkspace';
+import { RosterWorkspace } from './pages/shifts/RosterWorkspace';
+import { RecruitmentWorkspace } from './pages/recruitment/RecruitmentWorkspace';
+import { OnboardingWorkspace } from './pages/onboarding/OnboardingWorkspace';
+import { PayrollWorkspace } from './pages/payroll/PayrollWorkspace';
+import { SocialFeed } from './pages/social/SocialFeed';
+import { ESSDashboard } from './pages/ess/ESSDashboard';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -88,37 +94,37 @@ const App: React.FC = () => {
       theme={{
         token: {
           fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-          colorPrimary: '#10B981', // Emerald accent
-          colorSuccess: '#22C55E', // Success green
-          colorWarning: '#F59E0B', // Warning gold
-          colorError: '#EF4444',   // Danger red
-          colorTextBase: '#0F172A', // Primary Slate-900 text
+          colorPrimary: '#1E2A4A', // Ink Primary
+          colorSuccess: '#2DBE8C', // Success
+          colorWarning: '#F5A524', // Warm Amber
+          colorError: '#E5484D',   // Crimson Error
+          colorTextBase: '#101828', // Text
           colorBgBase: '#FFFFFF',   // Card background
-          colorBorder: '#E2E8F0',   // Border slate-200
-          borderRadius: 12,         // Modern larger border radius
+          colorBorder: '#E4E7EC',   // Border slate-200
+          borderRadius: 10,         // Modern smaller border radius
           wireframe: false
         },
         components: {
           Table: {
-            headerBg: '#F8FAFC',
-            headerColor: '#64748B',
-            rowHoverBg: '#F8FAFC',
+            headerBg: '#F7F8FA',
+            headerColor: '#667085',
+            rowHoverBg: '#F7F8FA',
             cellPaddingBlock: 14,
             cellPaddingInline: 16
           },
           Card: {
             headerBg: '#FFFFFF',
-            colorBorderSecondary: '#E2E8F0'
+            colorBorderSecondary: '#E4E7EC'
           },
           Button: {
             borderRadius: 8,
             controlHeight: 38
           },
           Menu: {
-            darkItemBg: '#0F172A',
+            darkItemBg: '#1E2A4A',
             darkItemColor: '#94A3B8',
-            darkItemSelectedBg: 'rgba(16, 185, 129, 0.15)',
-            darkItemSelectedColor: '#10B981',
+            darkItemSelectedBg: 'rgba(245, 165, 36, 0.15)',
+            darkItemSelectedColor: '#F5A524',
             darkItemHoverBg: 'rgba(255, 255, 255, 0.05)',
             darkItemHoverColor: '#FFFFFF'
           }
@@ -151,6 +157,12 @@ const App: React.FC = () => {
               <Route path="/reports" element={<ProtectedRoute allowedRoles={['Super Admin', 'Admin', 'HR']}><ReportsCenter /></ProtectedRoute>} />
               <Route path="/audit-logs" element={<ProtectedRoute allowedRoles={['Super Admin', 'Admin']}><AuditLogs /></ProtectedRoute>} />
               <Route path="/assets" element={<ProtectedRoute><AssetWorkspace /></ProtectedRoute>} />
+              <Route path="/roster" element={<ProtectedRoute><RosterWorkspace /></ProtectedRoute>} />
+              <Route path="/recruitment" element={<ProtectedRoute allowedRoles={['Super Admin', 'Admin', 'HR', 'Manager']}><RecruitmentWorkspace /></ProtectedRoute>} />
+              <Route path="/onboarding" element={<ProtectedRoute><OnboardingWorkspace /></ProtectedRoute>} />
+              <Route path="/payroll" element={<ProtectedRoute allowedRoles={['Super Admin', 'Admin', 'HR']}><PayrollWorkspace /></ProtectedRoute>} />
+              <Route path="/social" element={<ProtectedRoute><SocialFeed /></ProtectedRoute>} />
+              <Route path="/ess" element={<ProtectedRoute><ESSDashboard /></ProtectedRoute>} />
               {/* Catch-all Redirect */}
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
