@@ -483,7 +483,7 @@ export const ReportsCenter: React.FC = () => {
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
-                      data={deptDistribution}
+                      data={Array.isArray(deptDistribution) ? deptDistribution : []}
                       cx="50%"
                       cy="50%"
                       innerRadius={50}
@@ -491,7 +491,7 @@ export const ReportsCenter: React.FC = () => {
                       paddingAngle={4}
                       dataKey="value"
                     >
-                      {deptDistribution.map((entry: any, index: number) => (
+                      {(Array.isArray(deptDistribution) ? deptDistribution : []).map((entry: any, index: number) => (
                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                       ))}
                     </Pie>
@@ -507,7 +507,7 @@ export const ReportsCenter: React.FC = () => {
           <Col xs={24} lg={12}>
             <Card title="Allocation status of active projects" style={{ borderRadius: 12, border: '1px solid #E2E8F0' }}>
               <Table
-                dataSource={projects}
+                dataSource={Array.isArray(projects) ? projects : []}
                 rowKey="id"
                 pagination={{ pageSize: 4 }}
                 size="small"
