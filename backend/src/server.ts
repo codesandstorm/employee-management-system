@@ -7,6 +7,9 @@ import helmet from 'helmet';
 import * as path from 'path';
 import { initializeDatabase, db } from './config/db';
 
+import * as http from 'http';
+import { setupSockets } from './config/socket';
+
 // Import routers
 import authRouter from './routes/authRoutes';
 import employeeRouter from './routes/employeeRoutes';
@@ -172,9 +175,15 @@ if (process.env.DB_ENABLED === 'true') {
   }
 }
 
+// Create HTTP server wrapping Express app
+const server = http.createServer(app);
+
+// Setup Sockets
+setupSockets(server);
+
 // Initialize database then start server
 initializeDatabase().then(() => {
-  app.listen(PORT, () => {
+  server.listen(PORT, () => {
     console.log(`[Server] Enterprise HRMS Backend listening on http://localhost:${PORT}`);
   });
 }).catch(err => {

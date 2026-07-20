@@ -1,0 +1,23 @@
+{
+  "name": "desktop-agent",
+  "version": "1.0.0",
+  "description": "",
+  "main": "agent.js",
+  "bin": "agent.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "active-win": "^8.2.1",
+    "dotenv": "^17.4.2",
+    "screenshot-desktop": "^1.15.4",
+    "socket.io-client": "^4.8.3"
+  },
+  "devDependencies": {
+    "pkg": "^5.8.1"
+  }
+}
